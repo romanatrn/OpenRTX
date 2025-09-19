@@ -1032,26 +1032,24 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
         gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
 
         // Print frequency with the most sensible unit
-==== BASE ====
-        if (ui_state->new_offset < 1000)
-            snprintf(buf, 17, "%dHz", ui_state->new_offset);
-        else if (ui_state->new_offset < 1000000)
-            snprintf(buf, 17, "%gkHz", (float) ui_state->new_offset / 1000.0f);
+        if (ui_state->new_shift < 1000)
+            snprintf(buf, 17, "%gHz", ui_state->new_shift / 1.0f);
+        else if (ui_state->new_shift < 1000000)
+            snprintf(buf, 17, "%gkHz", (float) ui_state->new_shift / 1000.0f);
         else
-            snprintf(buf, 17, "%gMHz", (float) ui_state->new_offset / 1000000.0f);
-==== BASE ====
+            snprintf(buf, 17, "%gMHz", (float) ui_state->new_shift / 1000000.0f);
 
         gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                       layout.horizontal_pad, layout.input_font,
-                      TEXT_ALIGN_CENTER, color_white, "%s%cHz", buf, prefix);
+                      TEXT_ALIGN_CENTER, color_white, "%s", buf);
     }
     else if((ui_state->menu_selected == R_PPM) && (ui_state->edit_mode))
     {
         char buf[11] = { 0 };
-        uint16_t rect_width = SCREEN_WIDTH - (layout.horizontal_pad * 2);
-        uint16_t rect_height = (SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
-        point_t rect_origin = {(SCREEN_WIDTH - rect_width) / 2,
-                               (SCREEN_HEIGHT - rect_height) / 2};
+        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
+        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
 
         gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
 
@@ -1061,7 +1059,7 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
         else
             snprintf(buf, 11, "%d.%d", ui_state->new_ppm / 10, ui_state->new_ppm % 10);
 
-        gfx_printLine(1, 1, layout.top_h, SCREEN_HEIGHT - layout.bottom_h,
+        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                       layout.horizontal_pad, layout.input_font,
                       TEXT_ALIGN_CENTER, color_white, buf);
     }
