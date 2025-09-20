@@ -391,28 +391,30 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
             break;
     }
 
-    uint32_t div    = 1;
-    char     prefix = ' ';
+    if (index != R_PPM) {
 
-    if(value >= 1000000)
-    {
-        prefix = 'M';
-        div    = 1000000;
+        uint32_t div    = 1;
+        char     prefix = ' ';
+
+        if(value >= 1000000)
+        {
+            prefix = 'M';
+            div    = 1000000;
+        }
+        else if(value >= 1000)
+        {
+            prefix = 'k';
+            div    = 1000;
+        }
+
+        // NOTE: casts are there only to squelch -Wformat warnings on the
+        // sniprintf.
+        char str[16];
+        sniprintf(str, sizeof(str), "%u.%u", (unsigned int)(value / div),
+                                            (unsigned int)(value % div));
+        stripTrailingZeroes(str);
+        sniprintf(buf, max_len, "%s%cHz", str, prefix);
     }
-    else if(value >= 1000)
-    {
-        prefix = 'k';
-        div    = 1000;
-    }
-
-    // NOTE: casts are there only to squelch -Wformat warnings on the
-    // sniprintf.
-    char str[16];
-    sniprintf(str, sizeof(str), "%u.%u", (unsigned int)(value / div),
-                                        (unsigned int)(value % div));
-    stripTrailingZeroes(str);
-    sniprintf(buf, max_len, "%s%cHz", str, prefix);
-
     return 0;
 }
 
