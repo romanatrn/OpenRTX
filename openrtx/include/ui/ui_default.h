@@ -28,6 +28,7 @@
 #include "core/event.h"
 #include "hwconfig.h"
 #include "core/ui.h"
+#include <history.h>
 
 // Maximum menu entry length
 #define MAX_ENTRY_LEN 21
@@ -49,6 +50,7 @@ enum uiScreen
     MENU_BANK,
     MENU_CHANNEL,
     MENU_CONTACTS,
+    MENU_HISTORY,
     MENU_GPS,
     MENU_SETTINGS,
     MENU_BACKUP_RESTORE,
@@ -81,6 +83,9 @@ enum menuItems
     M_BANK = 0,
     M_CHANNEL,
     M_CONTACTS,
+#ifdef CONFIG_M17
+    M_HISTORY,
+#endif
 #ifdef CONFIG_GPS
     M_GPS,
 #endif
@@ -153,7 +158,8 @@ enum settingsM17Items
 {
     M17_CALLSIGN = 0,
     M17_CAN,
-    M17_CAN_RX
+    M17_CAN_RX,
+    M17_HISTORY
 };
 
 enum settingsFMItems

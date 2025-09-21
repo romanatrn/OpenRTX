@@ -103,6 +103,7 @@ const stringsTable_t englishStrings =
     .Decode            = "Decode",
     .Both              = "Both",
     .None              = "None",
-    .ppmFreqOffset     = "PPM Freq. Offset"
+    .ppmFreqOffset     = "PPM Freq. Offset",
+    .history           = "History"
 };
 #endif  // ENGLISHSTRINGS_H

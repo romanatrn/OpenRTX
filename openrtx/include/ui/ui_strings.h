@@ -108,6 +108,7 @@ typedef struct
     const char* Both;
     const char* None;
     const char* ppmFreqOffset;
+    const char* history;
 }
 stringsTable_t;
 

@@ -64,6 +64,7 @@ typedef struct
     char    m17_dest[10];         // M17 destination
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage
     int16_t ppm_offset;           // Frequency offset for tuning (in tenth of ppm)
+    bool    history_enabled;      // History active
 }
 __attribute__((packed)) settings_t;
 
@@ -91,6 +92,7 @@ static const settings_t default_settings =
     "",                           // Empty M17 destination
     false,                        // Display battery icon
     0,                            // Frequency offset
+    true,                         // History enabled
 };
 
 #endif /* SETTINGS_H */
