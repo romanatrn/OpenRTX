@@ -97,10 +97,11 @@ typedef struct
     const char* usedHeap;
     const char* broadcast;
     const char* radioSettings;
-    const char* frequencyOffset;
+    const char* repeaterShift;
     const char* macroLatching;
     const char* noGps;
     const char* batteryIcon;
+    const char* ppmFreqOffset;
 }
 stringsTable_t;
 

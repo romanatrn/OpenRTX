@@ -368,7 +368,7 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
     uint32_t value  = 0;
     switch(index)
     {
-        case R_OFFSET:
+        case R_SHIFT:
         {
             uint32_t txFreq = last_state.channel.tx_frequency;
             uint32_t rxFreq = last_state.channel.rx_frequency;
@@ -386,30 +386,35 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
         case R_STEP:
             value = freq_steps[last_state.step_index];
             break;
+        case R_PPM:
+            snprintf(buf, max_len, "%gppm", (float)last_state.settings.ppm_offset / 10.0f);
+            break;
     }
 
-    uint32_t div    = 1;
-    char     prefix = ' ';
+    if (index != R_PPM) {
 
-    if(value >= 1000000)
-    {
-        prefix = 'M';
-        div    = 1000000;
+        uint32_t div    = 1;
+        char     prefix = ' ';
+
+        if(value >= 1000000)
+        {
+            prefix = 'M';
+            div    = 1000000;
+        }
+        else if(value >= 1000)
+        {
+            prefix = 'k';
+            div    = 1000;
+        }
+
+        // NOTE: casts are there only to squelch -Wformat warnings on the
+        // sniprintf.
+        char str[16];
+        sniprintf(str, sizeof(str), "%u.%u", (unsigned int)(value / div),
+                                            (unsigned int)(value % div));
+        stripTrailingZeroes(str);
+        sniprintf(buf, max_len, "%s%cHz", str, prefix);
     }
-    else if(value >= 1000)
-    {
-        prefix = 'k';
-        div    = 1000;
-    }
-
-    // NOTE: casts are there only to squelch -Wformat warnings on the
-    // sniprintf.
-    char str[16];
-    sniprintf(str, sizeof(str), "%u.%u", (unsigned int)(value / div),
-                                        (unsigned int)(value % div));
-    stripTrailingZeroes(str);
-    sniprintf(buf, max_len, "%s%cHz", str, prefix);
-
     return 0;
 }
 
@@ -1018,7 +1023,7 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
               color_white, currentLanguage->radioSettings);
 
     // Handle the special case where a frequency is being input
-    if ((ui_state->menu_selected == R_OFFSET) && (ui_state->edit_mode))
+    if ((ui_state->menu_selected == R_SHIFT) && (ui_state->edit_mode))
     {
         char buf[17] = { 0 };
         uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
@@ -1029,28 +1034,36 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
         gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
 
         // Print frequency with the most sensible unit
-        char     prefix = ' ';
-        uint32_t div    = 1;
-        if(ui_state->new_offset >= 1000000)
-        {
-            prefix = 'M';
-            div    = 1000000;
-        }
-        else if(ui_state->new_offset >= 1000)
-        {
-            prefix = 'k';
-            div    = 1000;
-        }
-
-        // NOTE: casts are there only to squelch -Wformat warnings on the
-        // sniprintf.
-        sniprintf(buf, sizeof(buf), "%u.%u", (unsigned int)(ui_state->new_offset / div),
-                                            (unsigned int)(ui_state->new_offset % div));
-        stripTrailingZeroes(buf);
+        if (ui_state->new_shift < 1000)
+            snprintf(buf, 17, "%gHz", ui_state->new_shift / 1.0f);
+        else if (ui_state->new_shift < 1000000)
+            snprintf(buf, 17, "%gkHz", (float) ui_state->new_shift / 1000.0f);
+        else
+            snprintf(buf, 17, "%gMHz", (float) ui_state->new_shift / 1000000.0f);
 
         gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                       layout.horizontal_pad, layout.input_font,
-                      TEXT_ALIGN_CENTER, color_white, "%s%cHz", buf, prefix);
+                      TEXT_ALIGN_CENTER, color_white, "%s", buf);
+    }
+    else if((ui_state->menu_selected == R_PPM) && (ui_state->edit_mode))
+    {
+        char buf[11] = { 0 };
+        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
+        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
+
+        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+
+        // Print offset
+        if(ui_state->new_ppm_sign < 0)
+            snprintf(buf, 11, "-%d.%d", ui_state->new_ppm / 10, ui_state->new_ppm % 10);
+        else
+            snprintf(buf, 11, "%d.%d", ui_state->new_ppm / 10, ui_state->new_ppm % 10);
+
+        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                      layout.horizontal_pad, layout.input_font,
+                      TEXT_ALIGN_CENTER, color_white, buf);
     }
     else
     {
