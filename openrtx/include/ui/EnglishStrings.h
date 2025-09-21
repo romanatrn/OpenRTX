@@ -98,5 +98,6 @@ const stringsTable_t englishStrings =
     .noGps             = "No GPS",
     .batteryIcon       = "Battery Icon",
     .ppmFreqOffset     = "PPM Freq. Offset",
+    .history           = "History",
 };
 #endif  // ENGLISHSTRINGS_H

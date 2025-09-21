@@ -102,6 +102,7 @@ typedef struct
     const char* noGps;
     const char* batteryIcon;
     const char* ppmFreqOffset;
+    const char* history;
 }
 stringsTable_t;
 
