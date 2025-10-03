@@ -28,7 +28,7 @@
 #include "core/event.h"
 #include "hwconfig.h"
 #include "core/ui.h"
-#include <history.h>
+#include "core/history.h"
 
 // Maximum menu entry length
 #define MAX_ENTRY_LEN 21

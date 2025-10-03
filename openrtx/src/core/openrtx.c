@@ -29,7 +29,7 @@
 #include "core/threads.h"
 #include "core/state.h"
 #include "core/ui.h"
-#include <history.h>
+#include "core/history.h"
 #ifdef PLATFORM_LINUX
 #include <stdlib.h>
 #endif

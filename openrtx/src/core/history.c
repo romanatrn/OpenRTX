@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <history.h>
+#include "core/history.h"
 
 struct history_list *history_list;
 

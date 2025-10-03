@@ -21,11 +21,11 @@
 #ifndef HISTORY_H
 #define HISTORY_H
 
-#include <datatypes.h>
-#include <settings.h>
+#include "core/datatypes.h"
+#include "core/settings.h"
 #include <pthread.h>
 #include <stdbool.h>
-#include <gps.h>
+#include "core/gps.h"
 
 #define HISTORY_MAX 20
 
