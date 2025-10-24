@@ -85,8 +85,11 @@ void *ui_threadFunc(void *arg)
             pthread_mutex_lock(&rtx_mutex);
             rtx_cfg.opMode      = state.channel.mode;
             rtx_cfg.bandwidth   = state.channel.bandwidth;
-            rtx_cfg.rxFrequency = state.channel.rx_frequency;
-            rtx_cfg.txFrequency = state.channel.tx_frequency;
+
+            /* Applies frequency offset */
+            rtx_cfg.rxFrequency = state.channel.rx_frequency * (1.0f + (float)state.settings.ppm_offset/1e7);
+            rtx_cfg.txFrequency = state.channel.tx_frequency * (1.0f + (float)state.settings.ppm_offset/1e7);
+
             rtx_cfg.txPower     = state.channel.power;
             rtx_cfg.sqlLevel    = state.settings.sqlLevel;
             rtx_cfg.rxToneEn    = state.channel.fm.rxToneEn;
@@ -94,6 +97,7 @@ void *ui_threadFunc(void *arg)
             rtx_cfg.txToneEn    = state.channel.fm.txToneEn;
             rtx_cfg.txTone      = ctcss_tone[state.channel.fm.txTone];
             rtx_cfg.toneEn      = state.tone_enabled;
+            rtx_cfg.historyEnabled = state.settings.history_enabled;
 
             // Enable Tx if channel allows it and we are in UI main screen
             rtx_cfg.txDisable = state.channel.rx_only || state.txDisable;

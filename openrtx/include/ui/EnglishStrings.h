@@ -93,7 +93,7 @@ const stringsTable_t englishStrings =
     .usedHeap          = "Used heap",
     .broadcast         = "ALL",
     .radioSettings     = "Radio Settings",
-    .frequencyOffset   = "Frequency Offset",
+    .repeaterShift     = "Repeater Shift",
     .macroLatching     = "Macro Latch",
     .noGps             = "No GPS",
     .batteryIcon       = "Battery Icon",
@@ -102,6 +102,8 @@ const stringsTable_t englishStrings =
     .Encode            = "Encode",
     .Decode            = "Decode",
     .Both              = "Both",
-    .None              = "None"
+    .None              = "None",
+    .ppmFreqOffset     = "PPM Freq. Offset",
+    .history           = "History"
 };
 #endif  // ENGLISHSTRINGS_H

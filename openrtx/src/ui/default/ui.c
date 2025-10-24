@@ -96,6 +96,7 @@ extern void _ui_drawMenuTop(ui_state_t* ui_state);
 extern void _ui_drawMenuBank(ui_state_t* ui_state);
 extern void _ui_drawMenuChannel(ui_state_t* ui_state);
 extern void _ui_drawMenuContacts(ui_state_t* ui_state);
+extern void _ui_drawMenuHistory(ui_state_t* ui_state);
 #ifdef CONFIG_GPS
 extern void _ui_drawMenuGPS();
 extern void _ui_drawSettingsGPS(ui_state_t* ui_state);
@@ -125,6 +126,9 @@ const char *menu_items[] =
     "Banks",
     "Channels",
     "Contacts",
+#ifdef CONFIG_M17
+    "History",
+#endif
 #ifdef CONFIG_GPS
     "GPS",
 #endif
@@ -174,16 +178,18 @@ const char *settings_gps_items[] =
 
 const char *settings_radio_items[] =
 {
-    "Offset",
+    "Rpt. shift",
     "Direction",
     "Step",
+    "Correction",
 };
 
 const char * settings_m17_items[] =
 {
     "Callsign",
     "CAN",
-    "CAN RX Check"
+    "CAN RX Check",
+    "Keep History"
 };
 
 const char* settings_fm_items[] =
@@ -1011,6 +1017,10 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
             break;
         case 6:
             if (state.channel.power == 1000)
+                state.channel.power = 2000;
+            else if (state.channel.power == 2000)
+                state.channel.power = 3000;
+            else if (state.channel.power == 3000)
                 state.channel.power = 5000;
             else
                 state.channel.power = 1000;
@@ -1454,7 +1464,7 @@ void ui_updateFSM(bool *sync_rtx)
             macro_menu = true;
             macro_latched = true;
         }
-#endif // PLA%FORM_TTWRPLUS
+#endif // PLATFORM_TTWRPLUS
 
         if(state.tone_enabled && !(msg.keys & KEY_HASH))
         {
@@ -1814,6 +1824,11 @@ void ui_updateFSM(bool *sync_rtx)
                         case M_CONTACTS:
                             state.ui_screen = MENU_CONTACTS;
                             break;
+#ifdef CONFIG_M17
+                        case M_HISTORY:
+                            state.ui_screen = MENU_HISTORY;
+                            break;
+#endif
 #ifdef CONFIG_GPS
                         case M_GPS:
                             state.ui_screen = MENU_GPS;
@@ -1907,6 +1922,30 @@ void ui_updateFSM(bool *sync_rtx)
                 else if(msg.keys & KEY_ESC)
                     _ui_menuBack(MENU_TOP);
                 break;
+#ifdef CONFIG_M17
+            // History menu screen
+            case MENU_HISTORY:
+                if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                    // Using 1 as parameter disables menu wrap around
+                    _ui_menuUp(1);
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                {
+                    struct history history;
+                    if(history_read(&history, ui_state.menu_selected + 1) != -1)
+                        ui_state.menu_selected += 1;
+                }
+                else if(msg.long_press && msg.keys & KEY_ENTER)
+                {
+                    struct history history;
+                    history_read(&history, ui_state.menu_selected);
+                    strncpy(state.settings.m17_dest, history.callsign, 10);
+                    *sync_rtx = true;
+                    _ui_menuBack(MENU_TOP);
+                }
+                else if(msg.keys & KEY_ESC)
+                    _ui_menuBack(MENU_TOP);
+                break;
+#endif
 #ifdef CONFIG_GPS
             // GPS menu screen
             case MENU_GPS:
@@ -2191,34 +2230,34 @@ void ui_updateFSM(bool *sync_rtx)
                 {
                     switch(ui_state.menu_selected)
                     {
-                        case R_OFFSET:
+                        case R_SHIFT:
                             // Handle offset frequency input
 #if defined(CONFIG_UI_NO_KEYBOARD)
                             if(msg.long_press && msg.keys & KEY_ENTER)
                             {
                                 // Long press on CONFIG_UI_NO_KEYBOARD causes digits to advance by one
-                                ui_state.new_offset /= 10;
+                                ui_state.new_shift /= 10;
 #else
                             if(msg.keys & KEY_ENTER)
                             {
 #endif
                                 // Apply new offset
-                                state.channel.tx_frequency = state.channel.rx_frequency + ui_state.new_offset;
-                                vp_queueStringTableEntry(&currentLanguage->frequencyOffset);
-                                vp_queueFrequency(ui_state.new_offset);
+                                state.channel.tx_frequency = state.channel.rx_frequency + ui_state.new_shift;
+                                vp_queueStringTableEntry(&currentLanguage->repeaterShift);
+                                vp_queueFrequency(ui_state.new_shift);
                                 ui_state.edit_mode = false;
                             }
                             else
                             if(msg.keys & KEY_ESC)
                             {
                                 // Announce old frequency offset
-                                vp_queueStringTableEntry(&currentLanguage->frequencyOffset);
+                                vp_queueStringTableEntry(&currentLanguage->repeaterShift);
                                 vp_queueFrequency((int32_t)state.channel.tx_frequency - (int32_t)state.channel.rx_frequency);
                             }
                             else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
                                     msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
                             {
-                                _ui_numberInputDel(&ui_state.new_offset);
+                                _ui_numberInputDel(&ui_state.new_shift);
                             }
 #if defined(CONFIG_UI_NO_KEYBOARD)
                             else if(msg.keys & KNOB_LEFT || msg.keys & KNOB_RIGHT || msg.keys & KEY_ENTER)
@@ -2226,12 +2265,12 @@ void ui_updateFSM(bool *sync_rtx)
                             else if(input_isNumberPressed(msg))
 #endif
                             {
-                                _ui_numberInputKeypad(&ui_state.new_offset, msg);
+                                _ui_numberInputKeypad(&ui_state.new_shift, msg);
                                 ui_state.input_position += 1;
                             }
                             else if (msg.long_press && (msg.keys & KEY_F1) && (state.settings.vpLevel > vpBeep))
                             {
-                                vp_queueFrequency(ui_state.new_offset);
+                                vp_queueFrequency(ui_state.new_shift);
                                 f1Handled=true;
                             }
                             break;
@@ -2261,11 +2300,76 @@ void ui_updateFSM(bool *sync_rtx)
                                 state.step_index %= n_freq_steps;
                             }
                             break;
+                        case R_PPM:
+                            // Handle PPM offset input
+#if defined(UI_NO_KEYBOARD)
+                            if(msg.long_press && msg.keys & KEY_ENTER)
+                            {
+                                // Long press on UI_NO_KEYBOARD causes digits to advance by one
+                                ui_state.new_ppm /= 10;
+#else
+                            if(msg.keys & KEY_ENTER)
+                            {
+#endif
+                                // Apply new offset
+                                state.settings.ppm_offset = ui_state.new_ppm*ui_state.new_ppm_sign;
+                                vp_queueStringTableEntry(&currentLanguage->ppmFreqOffset);
+                                vp_queuePPM(ui_state.new_ppm);
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_ESC)
+                            {
+                                // Announce old frequency offset
+                                vp_queueStringTableEntry(&currentLanguage->ppmFreqOffset);
+                                vp_queuePPM(ui_state.new_ppm);
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                                    msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                            {
+                                uint32_t tmp = (uint32_t)ui_state.new_ppm;
+                                _ui_numberInputDel(&tmp);
+                                ui_state.new_ppm = (uint16_t)tmp;
+                            }
+#if defined(UI_NO_KEYBOARD)
+                            else if(msg.keys & KNOB_LEFT || msg.keys & KNOB_RIGHT || msg.keys & KEY_ENTER)
+#else
+                            else if(input_isNumberPressed(msg))
+#endif
+                            {
+                                uint32_t tmp = (uint32_t)ui_state.new_ppm;
+                                _ui_numberInputKeypad(&tmp, msg);
+                                //The PPM correction holds in an INT16 even though here we use a UINT16.
+                                if(tmp <= INT16_MAX) {
+                                    ui_state.new_ppm = (uint16_t)tmp;
+                                    ui_state.input_position += 1;
+                                }
+                            }
+#if !defined(UI_NO_KEYBOARD)
+                            else if(msg.keys & KEY_HASH)
+                            {
+                                ui_state.new_ppm_sign *= -1;
+                                vp_flush();
+                                if(ui_state.new_ppm_sign < 0){
+                                    vp_queuePrompt(PROMPT_MINUS);
+                                }
+                                vp_queuePPM(ui_state.new_ppm);
+                                vp_play();
+                            }
+#endif
+                            else if (msg.long_press && (msg.keys & KEY_F1) && (state.settings.vpLevel > vpBeep))
+                            {
+                                if(ui_state.new_ppm_sign < 0){
+                                    vp_queuePrompt(PROMPT_MINUS);
+                                }
+                                vp_queuePPM(ui_state.new_ppm);
+                                f1Handled=true;
+                            }
+                            break;
                         default:
                             state.ui_screen = SETTINGS_RADIO;
                     }
-                    // If ENTER or ESC are pressed, exit edit mode, R_OFFSET is managed separately
-                    if((ui_state.menu_selected != R_OFFSET && msg.keys & KEY_ENTER) || msg.keys & KEY_ESC)
+                    // If ENTER or ESC are pressed, exit edit mode, R_SHIFT is managed separately
+                    if((ui_state.menu_selected != R_SHIFT && msg.keys & KEY_ENTER) || msg.keys & KEY_ESC)
                         ui_state.edit_mode = false;
                 }
                 else if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
@@ -2274,9 +2378,13 @@ void ui_updateFSM(bool *sync_rtx)
                     _ui_menuDown(settings_radio_num);
                 else if(msg.keys & KEY_ENTER) {
                     ui_state.edit_mode = true;
-                    // If we are entering R_OFFSET clear temp offset
-                    if (ui_state.menu_selected == R_OFFSET)
-                        ui_state.new_offset = 0;
+                    // If we are entering R_SHIFT clear temp offset
+                    if (ui_state.menu_selected == R_SHIFT)
+                        ui_state.new_shift = 0;
+                    else if(ui_state.menu_selected == R_PPM) {
+                        ui_state.new_ppm = 0;
+                        ui_state.new_ppm_sign = 1;
+                    }
                     // Reset input position
                     ui_state.input_position = 0;
                 }
@@ -2347,6 +2455,22 @@ void ui_updateFSM(bool *sync_rtx)
                                 ui_state.edit_mode = !ui_state.edit_mode;
                             else if(msg.keys & KEY_ESC)
                                 ui_state.edit_mode = false;
+                        break;
+                        case M17_HISTORY:
+                            if(msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT ||
+                                (ui_state.edit_mode &&
+                                 (msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT ||
+                                  msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)))
+                            {
+                                state.settings.history_enabled =
+                                    !state.settings.history_enabled;
+                            //rtx_setNotifications(state.settings.history_enabled);
+                            }
+                            else if(msg.keys & KEY_ENTER)
+                                ui_state.edit_mode = !ui_state.edit_mode;
+                            else if(msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
                     }
                 }
                 else
@@ -2619,6 +2743,11 @@ bool ui_updateGUI()
         case MENU_CONTACTS:
             _ui_drawMenuContacts(&ui_state);
             break;
+#ifdef CONFIG_M17
+        case MENU_HISTORY:
+            _ui_drawMenuHistory(&ui_state); // fixed
+            break;
+#endif
 #ifdef CONFIG_GPS
         // GPS menu screen
         case MENU_GPS:
