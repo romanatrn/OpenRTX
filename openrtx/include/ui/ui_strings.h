@@ -84,7 +84,7 @@ typedef struct
     const char* usedHeap;
     const char* broadcast;
     const char* radioSettings;
-    const char* offset;
+    const char* repeaterShift;
     const char* macroLatching;
     const char* noGps;
     const char* batteryIcon;
@@ -100,6 +100,7 @@ typedef struct
     const char* CAN;
     const char* canRxCheck;
     const char* metaText;
+    const char* ppmFreqOffset;
 }
 stringsTable_t;
 
