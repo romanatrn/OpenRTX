@@ -1252,6 +1252,8 @@ static void _ui_numberInputDel(uint32_t *num)
     // announce the digit about to be backspaced.
     vp_announceInputChar('0' + *num % 10);
 
+    *num /= 10;
+
     // Move back input cursor
     if(ui_state.input_position > 0)
         ui_state.input_position--;

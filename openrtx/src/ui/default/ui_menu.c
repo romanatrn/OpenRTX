@@ -1120,7 +1120,7 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
         gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
 
         // Print offset
-        if(ui_state->new_ppm_sign < 0)
+        if((ui_state->new_ppm_sign < 0) && (ui_state->new_ppm > 0))
             snprintf(buf, 11, "-%d.%d", ui_state->new_ppm / 10, ui_state->new_ppm % 10);
         else
             snprintf(buf, 11, "%d.%d", ui_state->new_ppm / 10, ui_state->new_ppm % 10);
