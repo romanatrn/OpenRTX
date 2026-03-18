@@ -297,7 +297,6 @@ static ui_state_t ui_state;
 static bool macro_menu = false;
 static bool layout_ready = false;
 static bool redraw_needed = true;
-static settings_t last_saved_settings;
 
 static bool standby = false;
 static long long last_event_tick = 0;
@@ -1370,12 +1369,23 @@ static void _ui_numberInputDel(uint32_t *num)
     ui_state.input_set = 0;
 }
 
-static void _ui_persistSettingsIfNeeded()
+static bool _ui_isSettingsScreen(const uint8_t screen)
 {
-    if(memcmp(&state.settings, &last_saved_settings, sizeof(settings_t)) != 0)
+    switch(screen)
     {
-        if(nvm_writeSettings(&state.settings) == 0)
-            last_saved_settings = state.settings;
+        case MENU_SETTINGS:
+        case SETTINGS_TIMEDATE:
+        case SETTINGS_TIMEDATE_SET:
+        case SETTINGS_DISPLAY:
+        case SETTINGS_GPS:
+        case SETTINGS_RADIO:
+        case SETTINGS_M17:
+        case SETTINGS_FM:
+        case SETTINGS_ACCESSIBILITY:
+        case SETTINGS_RESET2DEFAULTS:
+            return true;
+        default:
+            return false;
     }
 }
 
@@ -1390,7 +1400,6 @@ void ui_init()
     // https://stackoverflow.com/questions/6891720/initialize-reset-struct-to-zero-null
     ui_state = (const struct ui_state_t){ 0 };
     ui_state.memory_edit_index = -1;
-    last_saved_settings = state.settings;
 }
 
 void ui_drawSplashScreen()
@@ -2938,6 +2947,10 @@ void ui_updateFSM(bool *sync_rtx)
         // to beep or you'll get an unwanted click.
         if ((msg.keys &0xffff) && (state.settings.vpLevel == vpBeep))
             vp_beep(BEEP_KEY_GENERIC, SHORT_BEEP);
+
+        if(_ui_isSettingsScreen(priorUIScreen) && !_ui_isSettingsScreen(state.ui_screen))
+            state_saveSettings();
+
         // If we exit and re-enter the same menu, we want to ensure it speaks.
         if (msg.keys & KEY_ESC)
             _ui_reset_menu_anouncement_tracking();
@@ -2968,7 +2981,6 @@ void ui_updateFSM(bool *sync_rtx)
         }
     }
 
-    _ui_persistSettingsIfNeeded();
 }
 
 bool ui_updateGUI()
