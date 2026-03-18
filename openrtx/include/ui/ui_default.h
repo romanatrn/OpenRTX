@@ -114,7 +114,9 @@ enum channelEditItems
     CE_RX_FREQ,
     CE_TX_FREQ,
     CE_MODE,
+    CE_BANDWIDTH,
     CE_POWER,
+    CE_ZONE,
     CE_SAVE,
     CE_DELETE,
     CE_CANCEL
@@ -273,6 +275,7 @@ typedef struct ui_state_t
     uint16_t new_ppm;
     int8_t new_ppm_sign;
     int16_t memory_edit_index;
+    int16_t channel_edit_zone;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)

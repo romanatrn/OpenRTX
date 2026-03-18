@@ -18,5 +18,6 @@ void ui_games_drawRunning(void);
 bool ui_games_handleLibraryEvent(ui_state_t *ui_state, kbd_msg_t msg);
 bool ui_games_handleRunningKeyEvent(kbd_msg_t msg);
 bool ui_games_handleRunningStatusEvent(void);
+void ui_games_syncPersistence(void);
 
 #endif /* UI_GAMES_H */

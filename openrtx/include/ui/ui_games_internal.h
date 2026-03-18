@@ -23,10 +23,21 @@ typedef struct ui_game_layout_t
     uint8_t  header_height;
 } ui_game_layout_t;
 
+typedef enum ui_game_id_t
+{
+    UI_GAME_SNAKE = 0,
+    UI_GAME_SOKOBAN,
+    UI_GAME_TETRIS,
+    UI_GAME_BOMBER,
+    UI_GAME_BREAKOUT,
+    UI_GAME_2048,
+    UI_GAME_MINES,
+} ui_game_id_t;
+
 typedef struct ui_game_driver_t
 {
+    ui_game_id_t id;
     const char *title;
-    const char *subtitle;
     uint16_t    tick_period_ms;
     void      (*start)(const ui_game_layout_t *layout);
     void      (*handleInput)(kbd_msg_t msg);
@@ -38,5 +49,15 @@ typedef struct ui_game_driver_t
 } ui_game_driver_t;
 
 extern const ui_game_driver_t ui_game_snake;
+extern const ui_game_driver_t ui_game_sokoban;
+extern const ui_game_driver_t ui_game_tetris;
+extern const ui_game_driver_t ui_game_bomber;
+extern const ui_game_driver_t ui_game_breakout;
+extern const ui_game_driver_t ui_game_2048;
+extern const ui_game_driver_t ui_game_mines;
+
+uint16_t ui_games_readBestScore(ui_game_id_t game_id);
+void ui_games_writeBestScore(ui_game_id_t game_id, uint16_t value);
+void ui_games_syncPersistence(void);
 
 #endif /* UI_GAMES_INTERNAL_H */

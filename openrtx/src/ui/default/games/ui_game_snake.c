@@ -98,10 +98,8 @@ static void snake_setDirection(int8_t dx, int8_t dy)
 
 static void snake_start(const ui_game_layout_t *layout)
 {
-    uint16_t best_score = snake.best_score;
-
     memset(&snake, 0, sizeof(snake));
-    snake.best_score = best_score;
+    snake.best_score = ui_games_readBestScore(UI_GAME_SNAKE);
     snake_rng_state ^= (uint32_t) getTick();
 
     snake.length = 3;
@@ -182,7 +180,10 @@ static void snake_tick(const ui_game_layout_t *layout)
     {
         snake.score += 1;
         if(snake.score > snake.best_score)
+        {
             snake.best_score = snake.score;
+            ui_games_writeBestScore(UI_GAME_SNAKE, snake.best_score);
+        }
         snake_spawnFood(layout);
     }
 }
@@ -234,8 +235,8 @@ static bool snake_isGameOver(void)
 
 const ui_game_driver_t ui_game_snake =
 {
+    .id = UI_GAME_SNAKE,
     .title = "Snake",
-    .subtitle = "Classic grid chase",
     .tick_period_ms = 180,
     .start = snake_start,
     .handleInput = snake_handleInput,

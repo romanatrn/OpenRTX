@@ -278,8 +278,8 @@ void _ui_drawVFOMiddleInput(ui_state_t* ui_state)
         {
             gfx_print(layout.line3_large_pos, layout.input_font, TEXT_ALIGN_CENTER,
                       color_white, ">Tx:%03lu.%04lu",
-                      (unsigned long)ui_state->new_rx_frequency/1000000,
-                      (unsigned long)(ui_state->new_rx_frequency%1000000)/100);
+                      (unsigned long)ui_state->new_tx_frequency/1000000,
+                      (unsigned long)(ui_state->new_tx_frequency%1000000)/100);
         }
         else
         {

@@ -10,17 +10,45 @@
 #include "ui/ui_games.h"
 #include "ui/ui_games_internal.h"
 
+typedef enum ui_game_phase_t
+{
+    UI_GAME_PHASE_TITLE = 0,
+    UI_GAME_PHASE_PLAYING,
+    UI_GAME_PHASE_PAUSED,
+    UI_GAME_PHASE_GAME_OVER,
+} ui_game_phase_t;
+
+typedef struct ui_games_persist_t
+{
+    uint16_t snake_best;
+    uint16_t sokoban_best;
+    uint16_t tetris_best;
+    uint16_t bomber_best;
+    uint16_t breakout_best;
+    uint16_t game2048_best;
+    uint16_t mines_best;
+} ui_games_persist_t;
+
 typedef struct ui_games_runtime_t
 {
     const ui_game_driver_t *active_game;
     ui_game_layout_t        layout;
+    ui_games_persist_t      persist;
     uint32_t                next_tick;
-    bool                    paused;
+    uint8_t                 selected_game;
+    ui_game_phase_t         phase;
+    bool                    persist_dirty;
 } ui_games_runtime_t;
 
 static const ui_game_driver_t *games_catalog[] =
 {
     &ui_game_snake,
+    &ui_game_sokoban,
+    &ui_game_tetris,
+    &ui_game_bomber,
+    &ui_game_breakout,
+    &ui_game_2048,
+    &ui_game_mines,
 };
 
 static ui_games_runtime_t ui_games_runtime;
@@ -28,6 +56,110 @@ static ui_games_runtime_t ui_games_runtime;
 static uint8_t ui_games_getCount(void)
 {
     return sizeof(games_catalog) / sizeof(games_catalog[0]);
+}
+
+static void ui_games_loadPersistence(void)
+{
+    ui_games_runtime.persist.snake_best = state.settings.snake_high_score;
+    ui_games_runtime.persist.sokoban_best = state.settings.sokoban_high_score;
+    ui_games_runtime.persist.tetris_best = state.settings.tetris_high_score;
+    ui_games_runtime.persist.bomber_best = state.settings.bomber_high_score;
+    ui_games_runtime.persist.breakout_best = state.settings.breakout_high_score;
+    ui_games_runtime.persist.game2048_best = state.settings.game2048_high_score;
+    ui_games_runtime.persist.mines_best = state.settings.mines_high_score;
+    ui_games_runtime.persist_dirty = false;
+}
+
+uint16_t ui_games_readBestScore(ui_game_id_t game_id)
+{
+    switch(game_id)
+    {
+        case UI_GAME_SNAKE:   return ui_games_runtime.persist.snake_best;
+        case UI_GAME_SOKOBAN: return ui_games_runtime.persist.sokoban_best;
+        case UI_GAME_TETRIS:  return ui_games_runtime.persist.tetris_best;
+        case UI_GAME_BOMBER:  return ui_games_runtime.persist.bomber_best;
+        case UI_GAME_BREAKOUT:return ui_games_runtime.persist.breakout_best;
+        case UI_GAME_2048:    return ui_games_runtime.persist.game2048_best;
+        case UI_GAME_MINES:   return ui_games_runtime.persist.mines_best;
+        default:              return 0;
+    }
+}
+
+void ui_games_writeBestScore(ui_game_id_t game_id, uint16_t value)
+{
+    switch(game_id)
+    {
+        case UI_GAME_SNAKE:
+            if(value > ui_games_runtime.persist.snake_best)
+            {
+                ui_games_runtime.persist.snake_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+
+        case UI_GAME_SOKOBAN:
+            if(value > ui_games_runtime.persist.sokoban_best)
+            {
+                ui_games_runtime.persist.sokoban_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+
+        case UI_GAME_TETRIS:
+            if(value > ui_games_runtime.persist.tetris_best)
+            {
+                ui_games_runtime.persist.tetris_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+
+        case UI_GAME_BOMBER:
+            if(value > ui_games_runtime.persist.bomber_best)
+            {
+                ui_games_runtime.persist.bomber_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+
+        case UI_GAME_BREAKOUT:
+            if(value > ui_games_runtime.persist.breakout_best)
+            {
+                ui_games_runtime.persist.breakout_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+
+        case UI_GAME_2048:
+            if(value > ui_games_runtime.persist.game2048_best)
+            {
+                ui_games_runtime.persist.game2048_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+
+        case UI_GAME_MINES:
+            if(value > ui_games_runtime.persist.mines_best)
+            {
+                ui_games_runtime.persist.mines_best = value;
+                ui_games_runtime.persist_dirty = true;
+            }
+            break;
+    }
+}
+
+void ui_games_syncPersistence(void)
+{
+    if(!ui_games_runtime.persist_dirty)
+        return;
+
+    state.settings.snake_high_score = ui_games_runtime.persist.snake_best;
+    state.settings.sokoban_high_score = ui_games_runtime.persist.sokoban_best;
+    state.settings.tetris_high_score = ui_games_runtime.persist.tetris_best;
+    state.settings.bomber_high_score = ui_games_runtime.persist.bomber_best;
+    state.settings.breakout_high_score = ui_games_runtime.persist.breakout_best;
+    state.settings.game2048_high_score = ui_games_runtime.persist.game2048_best;
+    state.settings.mines_high_score = ui_games_runtime.persist.mines_best;
+    ui_games_runtime.persist_dirty = false;
 }
 
 static void ui_games_updateLayout(void)
@@ -55,27 +187,32 @@ static void ui_games_updateLayout(void)
 
 static const ui_game_driver_t *ui_games_getSelectedGame(const ui_state_t *ui_state)
 {
-    uint8_t count = ui_games_getCount();
     uint8_t selected = ui_state->menu_selected;
 
-    if(selected >= count)
+    if(selected >= ui_games_getCount())
         selected = 0;
 
     return games_catalog[selected];
 }
 
-static void ui_games_startSelection(const ui_state_t *ui_state)
+static void ui_games_beginTitle(const ui_state_t *ui_state)
 {
+    ui_games_runtime.selected_game = ui_state->menu_selected;
     ui_games_runtime.active_game = ui_games_getSelectedGame(ui_state);
-    ui_games_runtime.paused = false;
-    ui_games_runtime.next_tick = getTick() + ui_games_runtime.active_game->tick_period_ms;
-    ui_games_runtime.active_game->start(&ui_games_runtime.layout);
+    ui_games_runtime.phase = UI_GAME_PHASE_TITLE;
+    ui_games_runtime.next_tick = 0;
     state.ui_screen = GAME_RUN;
+}
+
+static void ui_games_beginPlay(void)
+{
+    ui_games_runtime.active_game->start(&ui_games_runtime.layout);
+    ui_games_runtime.next_tick = getTick() + ui_games_runtime.active_game->tick_period_ms;
+    ui_games_runtime.phase = UI_GAME_PHASE_PLAYING;
 }
 
 static void ui_games_drawLibraryItem(point_t *pos,
                                      const char *title,
-                                     const char *subtitle,
                                      bool selected)
 {
     color_t text_color = color_white;
@@ -89,53 +226,99 @@ static void ui_games_drawLibraryItem(point_t *pos,
 
     gfx_print(*pos, layout.menu_font, TEXT_ALIGN_LEFT, text_color, title);
 
-#if CONFIG_SCREEN_HEIGHT > 64
-    if(selected)
-    {
-        gfx_print(*pos, FONT_SIZE_6PT, TEXT_ALIGN_RIGHT, text_color, subtitle);
-    }
-#else
-    (void) subtitle;
-#endif
-
     pos->y += layout.menu_h;
+}
+
+static void ui_games_drawTitleArt(ui_game_id_t game_id)
+{
+    point_t center = {CONFIG_SCREEN_WIDTH / 2, (CONFIG_SCREEN_HEIGHT / 2) + 4};
+
+    switch(game_id)
+    {
+        case UI_GAME_SNAKE:
+            for(uint8_t i = 0; i < 5; i++)
+            {
+                point_t pos = {center.x - 16 + (i * 6), center.y + ((i > 2) ? 4 : 0)};
+                gfx_drawRect(pos, 5, 5, (i == 4) ? yellow_fab413 : color_white, true);
+            }
+            gfx_drawRect((point_t){center.x + 16, center.y - 8}, 5, 5, yellow_fab413, false);
+            break;
+
+        case UI_GAME_SOKOBAN:
+            gfx_drawRect((point_t){center.x - 18, center.y - 10}, 12, 12, color_grey, true);
+            gfx_drawRect((point_t){center.x - 2, center.y - 10}, 12, 12, color_white, true);
+            gfx_drawRect((point_t){center.x + 14, center.y - 10}, 12, 12, color_grey, false);
+            gfx_drawRect((point_t){center.x - 6, center.y + 8}, 10, 10, yellow_fab413, true);
+            break;
+
+        case UI_GAME_TETRIS:
+            gfx_drawRect((point_t){center.x - 20, center.y - 12}, 17, 5, color_white, true);
+            gfx_drawRect((point_t){center.x - 8, center.y - 6}, 11, 11, yellow_fab413, true);
+            gfx_drawRect((point_t){center.x + 7, center.y - 12}, 5, 17, color_white, true);
+            gfx_drawRect((point_t){center.x + 16, center.y - 4}, 11, 11, color_grey, true);
+            break;
+
+        case UI_GAME_BOMBER:
+            gfx_drawRect((point_t){center.x - 16, center.y - 10}, 10, 10, color_white, true);
+            gfx_drawRect((point_t){center.x + 6, center.y - 8}, 12, 12, color_white, false);
+            gfx_drawCircle((point_t){center.x + 12, center.y - 2}, 6, yellow_fab413);
+            gfx_drawRect((point_t){center.x + 10, center.y - 4}, 5, 5, yellow_fab413, true);
+            gfx_drawLine((point_t){center.x + 16, center.y - 8}, (point_t){center.x + 22, center.y - 16}, color_white);
+            gfx_drawRect((point_t){center.x - 20, center.y + 10}, 40, 3, color_grey, true);
+            break;
+
+        case UI_GAME_BREAKOUT:
+            gfx_drawRect((point_t){center.x - 18, center.y - 12}, 8, 8, color_white, true);
+            gfx_drawRect((point_t){center.x - 6, center.y - 12}, 8, 8, yellow_fab413, true);
+            gfx_drawRect((point_t){center.x + 6, center.y - 12}, 8, 8, color_white, true);
+            gfx_drawRect((point_t){center.x - 4, center.y}, 5, 5, yellow_fab413, true);
+            gfx_drawRect((point_t){center.x - 18, center.y + 14}, 36, 4, color_white, true);
+            break;
+
+        case UI_GAME_2048:
+            gfx_drawRect((point_t){center.x - 18, center.y - 14}, 16, 16, color_grey, true);
+            gfx_drawRect((point_t){center.x + 2, center.y - 14}, 16, 16, color_white, true);
+            gfx_drawRect((point_t){center.x - 18, center.y + 6}, 16, 16, yellow_fab413, true);
+            gfx_drawRect((point_t){center.x + 2, center.y + 6}, 16, 16, color_grey, false);
+            break;
+
+        case UI_GAME_MINES:
+            gfx_drawRect((point_t){center.x - 18, center.y - 12}, 36, 24, color_grey, false);
+            gfx_drawLine((point_t){center.x - 6, center.y - 10}, (point_t){center.x - 6, center.y + 10}, color_grey);
+            gfx_drawLine((point_t){center.x + 6, center.y - 10}, (point_t){center.x + 6, center.y + 10}, color_grey);
+            gfx_drawLine((point_t){center.x - 18, center.y - 2}, (point_t){center.x + 18, center.y - 2}, color_grey);
+            gfx_drawLine((point_t){center.x - 18, center.y + 6}, (point_t){center.x + 18, center.y + 6}, color_grey);
+            gfx_drawCircle((point_t){center.x + 12, center.y - 8}, 4, yellow_fab413);
+            gfx_drawRect((point_t){center.x - 16, center.y + 8}, 8, 8, color_white, true);
+            break;
+    }
 }
 
 static void ui_games_drawOverlay(const char *line1,
                                  const char *line2,
                                  const char *line3)
 {
-    point_t box = {layout.horizontal_pad + 2, CONFIG_SCREEN_HEIGHT / 2 - (layout.menu_h + 8)};
-    uint16_t box_width = CONFIG_SCREEN_WIDTH - ((layout.horizontal_pad + 2) * 2);
-    uint16_t box_height = (CONFIG_SCREEN_HEIGHT > 64) ? 42 : 30;
-    point_t accent = {box.x + 2, box.y + 2};
+    uint16_t box_width = (CONFIG_SCREEN_HEIGHT > 64) ? 84 : 58;
+    uint16_t box_height = (CONFIG_SCREEN_HEIGHT > 64) ? 54 : 38;
+    point_t box =
+    {
+        (CONFIG_SCREEN_WIDTH - box_width) / 2,
+        (CONFIG_SCREEN_HEIGHT - box_height) / 2
+    };
 
     gfx_drawRect((point_t){box.x - 1, box.y - 1}, box_width + 2, box_height + 2, color_grey, false);
-    gfx_drawRect(box,
-                 box_width,
-                 box_height,
-                 color_black,
-                 true);
-    gfx_drawRect(box,
-                 box_width,
-                 box_height,
-                  color_white,
-                 false);
+    gfx_drawRect(box, box_width, box_height, color_black, true);
+    gfx_drawRect(box, box_width, box_height, color_white, false);
 
-    gfx_drawRect(accent,
-                 box_width - 4,
-                 (CONFIG_SCREEN_HEIGHT > 64) ? 8 : 6,
-                 yellow_fab413,
-                 true);
-    gfx_print((point_t){0, box.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 18 : 14)},
+    gfx_print((point_t){0, box.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 16 : 13)},
               FONT_SIZE_8PT,
               TEXT_ALIGN_CENTER,
-              color_white,
+              yellow_fab413,
               line1);
 
     if(line2 != NULL)
     {
-        gfx_print((point_t){0, box.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 28 : 21)},
+        gfx_print((point_t){0, box.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 31 : 24)},
                   FONT_SIZE_6PT,
                   TEXT_ALIGN_CENTER,
                   color_white,
@@ -144,24 +327,87 @@ static void ui_games_drawOverlay(const char *line1,
 
     if(line3 != NULL)
     {
-        gfx_print((point_t){0, box.y + box_height - ((CONFIG_SCREEN_HEIGHT > 64) ? 8 : 6)},
+        gfx_print((point_t){0, box.y + box_height - ((CONFIG_SCREEN_HEIGHT > 64) ? 11 : 8)},
                   FONT_SIZE_6PT,
                   TEXT_ALIGN_CENTER,
-                  yellow_fab413,
+                  color_white,
                   line3);
     }
+}
+
+static void ui_games_drawTitleScreen(void)
+{
+    const ui_game_driver_t *game = ui_games_runtime.active_game;
+    char best_buf[24];
+
+    gfx_fillScreen(color_black);
+    gfx_drawRect((point_t){layout.horizontal_pad, layout.top_h + 8},
+                 CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2),
+                 CONFIG_SCREEN_HEIGHT - (layout.top_h + 12),
+                 color_grey,
+                 false);
+
+    gfx_print((point_t){0, layout.top_h + 20},
+              FONT_SIZE_16PT,
+              TEXT_ALIGN_CENTER,
+              yellow_fab413,
+              game->title);
+    ui_games_drawTitleArt(game->id);
+
+    snprintf(best_buf, sizeof(best_buf), "Best %u", ui_games_readBestScore(game->id));
+    gfx_print((point_t){0, CONFIG_SCREEN_HEIGHT - ((CONFIG_SCREEN_HEIGHT > 64) ? 18 : 14)},
+              FONT_SIZE_6PT,
+              TEXT_ALIGN_CENTER,
+              yellow_fab413,
+              best_buf);
+}
+
+static void ui_games_drawGameOverScreen(void)
+{
+    const ui_game_driver_t *game = ui_games_runtime.active_game;
+    char score_buf[24];
+    char best_buf[24];
+    point_t panel =
+    {
+        layout.horizontal_pad,
+        (CONFIG_SCREEN_HEIGHT > 64) ? 18 : 14
+    };
+    uint16_t panel_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+    uint16_t panel_height = CONFIG_SCREEN_HEIGHT - (panel.y * 2);
+
+    snprintf(score_buf, sizeof(score_buf), "Score %u", game->getScore());
+    snprintf(best_buf, sizeof(best_buf), "Best %u", game->getBestScore());
+
+    gfx_fillScreen(color_black);
+    gfx_drawRect(panel, panel_width, panel_height, color_grey, false);
+    gfx_print((point_t){0, panel.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 14 : 12)},
+              FONT_SIZE_8PT,
+              TEXT_ALIGN_CENTER,
+              yellow_fab413,
+              "Game Over");
+    gfx_print((point_t){0, panel.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 30 : 22)},
+              FONT_SIZE_6PT,
+              TEXT_ALIGN_CENTER,
+              color_white,
+              score_buf);
+    gfx_print((point_t){0, panel.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 42 : 30)},
+              FONT_SIZE_6PT,
+              TEXT_ALIGN_CENTER,
+              color_white,
+              best_buf);
 }
 
 void ui_games_init(void)
 {
     memset(&ui_games_runtime, 0, sizeof(ui_games_runtime));
     ui_games_updateLayout();
+    ui_games_loadPersistence();
 }
 
 void ui_games_enterLibrary(ui_state_t *ui_state)
 {
     ui_games_runtime.active_game = NULL;
-    ui_games_runtime.paused = false;
+    ui_games_runtime.phase = UI_GAME_PHASE_TITLE;
     ui_games_runtime.next_tick = 0;
     ui_games_updateLayout();
 
@@ -182,33 +428,41 @@ void ui_games_drawLibrary(ui_state_t *ui_state)
         bool selected = (ui_state->menu_selected == i);
         ui_games_drawLibraryItem(&pos,
                                  games_catalog[i]->title,
-                                 games_catalog[i]->subtitle,
                                  selected);
     }
-
 }
 
 void ui_games_drawRunning(void)
 {
     char score_buf[24];
-    char best_buf[24];
     point_t border =
     {
         ui_games_runtime.layout.board_origin.x - 1,
         ui_games_runtime.layout.board_origin.y - 1
     };
 
-    gfx_fillScreen(color_black);
-
     if(ui_games_runtime.active_game == NULL)
     {
+        gfx_fillScreen(color_black);
         gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER, color_white, "Games");
         gfx_print(layout.line3_pos, layout.menu_font, TEXT_ALIGN_CENTER, color_white, "No game loaded");
         return;
     }
 
+    if(ui_games_runtime.phase == UI_GAME_PHASE_TITLE)
+    {
+        ui_games_drawTitleScreen();
+        return;
+    }
+
+    if(ui_games_runtime.phase == UI_GAME_PHASE_GAME_OVER)
+    {
+        ui_games_drawGameOverScreen();
+        return;
+    }
+
+    gfx_fillScreen(color_black);
     snprintf(score_buf, sizeof(score_buf), "Score %u", ui_games_runtime.active_game->getScore());
-    snprintf(best_buf, sizeof(best_buf), "Best %u", ui_games_runtime.active_game->getBestScore());
 
     gfx_print(layout.top_pos,
               layout.top_font,
@@ -230,14 +484,8 @@ void ui_games_drawRunning(void)
 
     ui_games_runtime.active_game->draw(&ui_games_runtime.layout);
 
-    if(ui_games_runtime.paused)
-    {
-        ui_games_drawOverlay("Paused", NULL, "Enter resume   Esc menu");
-    }
-    else if(ui_games_runtime.active_game->isGameOver())
-    {
-        ui_games_drawOverlay("Game Over", best_buf, "Enter retry   Esc menu");
-    }
+    if(ui_games_runtime.phase == UI_GAME_PHASE_PAUSED)
+        ui_games_drawOverlay("Paused", "Enter to resume", "Esc returns to menu");
 }
 
 bool ui_games_handleLibraryEvent(ui_state_t *ui_state, kbd_msg_t msg)
@@ -266,7 +514,7 @@ bool ui_games_handleLibraryEvent(ui_state_t *ui_state, kbd_msg_t msg)
 
     if(msg.keys & KEY_ENTER)
     {
-        ui_games_startSelection(ui_state);
+        ui_games_beginTitle(ui_state);
         return true;
     }
 
@@ -294,27 +542,39 @@ bool ui_games_handleRunningKeyEvent(kbd_msg_t msg)
         return true;
     }
 
+    if(ui_games_runtime.phase == UI_GAME_PHASE_TITLE)
+    {
+        if(msg.keys & KEY_ENTER)
+            ui_games_beginPlay();
+
+        return true;
+    }
+
+    if(ui_games_runtime.phase == UI_GAME_PHASE_GAME_OVER)
+    {
+        if(msg.keys & KEY_ENTER)
+            ui_games_beginPlay();
+
+        return true;
+    }
+
     if(msg.keys & KEY_ENTER)
     {
-        if(ui_games_runtime.active_game->isGameOver())
+        if(ui_games_runtime.phase == UI_GAME_PHASE_PAUSED)
         {
-            ui_games_runtime.active_game->start(&ui_games_runtime.layout);
-            ui_games_runtime.paused = false;
+            ui_games_runtime.phase = UI_GAME_PHASE_PLAYING;
             ui_games_runtime.next_tick = getTick() + ui_games_runtime.active_game->tick_period_ms;
         }
         else
         {
-            ui_games_runtime.paused = !ui_games_runtime.paused;
-            ui_games_runtime.next_tick = getTick() + ui_games_runtime.active_game->tick_period_ms;
+            ui_games_runtime.phase = UI_GAME_PHASE_PAUSED;
         }
 
         return true;
     }
 
-    if(!ui_games_runtime.paused && !ui_games_runtime.active_game->isGameOver())
-    {
+    if(ui_games_runtime.phase == UI_GAME_PHASE_PLAYING)
         ui_games_runtime.active_game->handleInput(msg);
-    }
 
     return true;
 }
@@ -322,8 +582,7 @@ bool ui_games_handleRunningKeyEvent(kbd_msg_t msg)
 bool ui_games_handleRunningStatusEvent(void)
 {
     if((ui_games_runtime.active_game == NULL) ||
-       ui_games_runtime.paused ||
-       ui_games_runtime.active_game->isGameOver())
+       (ui_games_runtime.phase != UI_GAME_PHASE_PLAYING))
     {
         return false;
     }
@@ -336,7 +595,10 @@ bool ui_games_handleRunningStatusEvent(void)
         ui_games_runtime.next_tick += ui_games_runtime.active_game->tick_period_ms;
 
         if(ui_games_runtime.active_game->isGameOver())
+        {
+            ui_games_runtime.phase = UI_GAME_PHASE_GAME_OVER;
             break;
+        }
     }
 
     return true;
