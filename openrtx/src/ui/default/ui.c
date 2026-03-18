@@ -88,6 +88,7 @@ extern void _ui_drawMenuChannelAction(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelFreqInput(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelRename(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelDelete(ui_state_t* ui_state);
+extern void _ui_drawMenuChannelOverwrite(ui_state_t* ui_state);
 extern void _ui_drawMenuContacts(ui_state_t* ui_state);
 extern void _ui_drawMenuContactEdit(ui_state_t* ui_state);
 extern void _ui_drawMenuContactRename(ui_state_t* ui_state);
@@ -96,6 +97,7 @@ extern void ui_games_drawLibrary(ui_state_t* ui_state);
 extern void _ui_drawMenuGPS();
 extern void _ui_drawSettingsGPS(ui_state_t* ui_state);
 #endif
+extern void _ui_drawMenuAPRS(ui_state_t* ui_state);
 
 static void _ui_textInputPreset(char *buf, uint8_t max_len, const char *initial);
 extern void _ui_drawSettingsAccessibility(ui_state_t* ui_state);
@@ -110,6 +112,7 @@ extern void _ui_drawSettingsTimeDate();
 extern void _ui_drawSettingsTimeDateSet(ui_state_t* ui_state);
 #endif
 extern void _ui_drawSettingsDisplay(ui_state_t* ui_state);
+extern void _ui_drawSettingsAPRS(ui_state_t* ui_state);
 extern void _ui_drawSettingsM17(ui_state_t* ui_state);
 extern void _ui_drawSettingsFM(ui_state_t* ui_state);
 extern void _ui_drawSettingsVoicePrompts(ui_state_t* ui_state);
@@ -123,6 +126,7 @@ const char *menu_items[] =
 {
     "Banks",
     "Channels",
+    "APRS",
     "Contacts",
     "Games",
 #ifdef CONFIG_GPS
@@ -143,6 +147,7 @@ const char *settings_items[] =
     "GPS",
 #endif
     "Radio",
+    "APRS",
 #ifdef CONFIG_M17
     "M17",
 #endif
@@ -184,18 +189,36 @@ const char *settings_radio_items[] =
     "Correction",
 };
 
+const char *settings_aprs_items[] =
+{
+    "Enabled",
+    "Auto Beacon",
+    "KISS TNC",
+    "SSID",
+    "Interval",
+    "Path",
+    "Comment"
+};
+
 const char * settings_m17_items[] =
 {
     "Callsign",
     "Meta Txt",
     "CAN",
-    "CAN RX Check"
+    "CAN RX Check",
+    "Encryption",
+    "Key Slot",
+    "Key 1",
+    "Key 2",
+    "Key 3",
+    "Key 4"
 };
 
 const char* settings_fm_items[] =
 {
-    "CTCSS Tone",
-    "CTCSS En."
+    "RX Tone",
+    "TX Tone",
+    "Tone Mode"
 };
 
 const char * settings_accessibility_items[] =
@@ -209,6 +232,13 @@ const char *backup_restore_items[] =
 {
     "Backup",
     "Restore"
+};
+
+const char *bank_action_items[] =
+{
+    "Open",
+    "Edit",
+    "Delete"
 };
 
 const char *channel_edit_items[] =
@@ -229,6 +259,8 @@ const char *channel_action_items[] =
 {
     "Open",
     "Edit",
+    "Copy to VFO",
+    "Save VFO Here",
     "Delete"
 };
 
@@ -308,12 +340,14 @@ const uint8_t display_num = sizeof(display_items)/sizeof(display_items[0]);
 const uint8_t settings_gps_num = sizeof(settings_gps_items)/sizeof(settings_gps_items[0]);
 #endif
 const uint8_t settings_radio_num = sizeof(settings_radio_items)/sizeof(settings_radio_items[0]);
+const uint8_t settings_aprs_num = sizeof(settings_aprs_items)/sizeof(settings_aprs_items[0]);
 #ifdef CONFIG_M17
 const uint8_t settings_m17_num = sizeof(settings_m17_items)/sizeof(settings_m17_items[0]);
 #endif
 const uint8_t settings_fm_num = sizeof(settings_fm_items) / sizeof(settings_fm_items[0]);
 const uint8_t settings_accessibility_num = sizeof(settings_accessibility_items)/sizeof(settings_accessibility_items[0]);
 const uint8_t backup_restore_num = sizeof(backup_restore_items)/sizeof(backup_restore_items[0]);
+const uint8_t bank_action_num = sizeof(bank_action_items)/sizeof(bank_action_items[0]);
 const uint8_t channel_edit_num = sizeof(channel_edit_items)/sizeof(channel_edit_items[0]);
 const uint8_t channel_action_num = sizeof(channel_action_items)/sizeof(channel_action_items[0]);
 const uint8_t contact_edit_num = sizeof(contact_edit_items)/sizeof(contact_edit_items[0]);
@@ -368,6 +402,9 @@ static settings_t last_saved_settings;
 
 static bool standby = false;
 static long long last_event_tick = 0;
+
+static void _ui_clearTemporaryFmActions(bool *sync_rtx);
+static void _ui_stopVfoScan(bool *sync_rtx, bool announce);
 
 // UI event queue
 static uint8_t evQueue_rdPos;
@@ -708,11 +745,13 @@ static void _ui_cycleChannelMode(int8_t direction)
 
 #ifdef CONFIG_M17
     if(state.channel.mode == OPMODE_FM)
+        state.channel.mode = OPMODE_APRS;
+    else if(state.channel.mode == OPMODE_APRS)
         state.channel.mode = OPMODE_M17;
     else
         state.channel.mode = OPMODE_FM;
 #else
-    state.channel.mode = OPMODE_FM;
+    state.channel.mode = (state.channel.mode == OPMODE_FM) ? OPMODE_APRS : OPMODE_FM;
 #endif
 }
 
@@ -801,6 +840,7 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
     // Read successful and channel is valid
     if((result != -1) && _ui_channel_valid(&channel))
     {
+        _ui_clearTemporaryFmActions(sync_rtx);
         // Set new channel index
         state.channel_index = selected_channel;
         // Copy channel read to state
@@ -1338,6 +1378,49 @@ static inline void _ui_changeM17Can(int variation)
     uint8_t can = state.settings.m17_can;
     state.settings.m17_can = (can + variation) % 16;
 }
+
+static void _ui_changeM17Encryption(int variation)
+{
+    static const uint8_t modes[] = {
+        PLAIN,
+        SCRAMBLER,
+        SCRAMBLER,
+        SCRAMBLER,
+        AES
+    };
+    static const uint8_t subtypes[] = {
+        0,
+        0,
+        1,
+        2,
+        0
+    };
+
+    int index = 0;
+    if(state.settings.m17_default_encryption == AES)
+        index = 4;
+    else if(state.settings.m17_default_encryption == SCRAMBLER)
+        index = 1 + state.settings.m17_default_enc_subtype;
+
+    index += variation;
+    if(index < 0)
+        index = 0;
+    if(index > 4)
+        index = 4;
+
+    state.settings.m17_default_encryption = modes[index];
+    state.settings.m17_default_enc_subtype = subtypes[index];
+}
+
+static void _ui_changeM17KeySlot(int variation)
+{
+    int slot = state.settings.m17_default_key_index + variation;
+    if(slot < 0)
+        slot = 0;
+    if(slot > M17_KEY_SLOTS)
+        slot = M17_KEY_SLOTS;
+    state.settings.m17_default_key_index = slot;
+}
 #endif
 
 static void _ui_changeVoiceLevel(int variation)
@@ -1455,6 +1538,211 @@ int _ui_handleToneSelectScroll(bool direction_up)
     return 1;
 }
 
+static void _ui_announceQuickActionState(const char *label, bool enabled)
+{
+    if(state.settings.vpLevel < vpLow)
+        return;
+
+    vp_flush();
+    vp_queueString(label, vpAnnounceCommonSymbols);
+    vp_queueStringTableEntry(enabled ? &currentLanguage->on : &currentLanguage->off);
+    vp_play();
+}
+
+static void _ui_toggleMonitor(bool *sync_rtx)
+{
+    if(state.channel.mode != OPMODE_FM)
+        return;
+
+    state.fm_monitor = !state.fm_monitor;
+    *sync_rtx = true;
+    _ui_announceQuickActionState("Monitor", state.fm_monitor);
+}
+
+static void _ui_toggleReverse(bool *sync_rtx)
+{
+    if(state.channel.mode != OPMODE_FM)
+        return;
+
+    freq_t tmp = state.channel.rx_frequency;
+    state.channel.rx_frequency = state.channel.tx_frequency;
+    state.channel.tx_frequency = tmp;
+    state.fm_reverse = !state.fm_reverse;
+    *sync_rtx = true;
+
+    if(state.settings.vpLevel >= vpLow)
+    {
+        vp_flush();
+        vp_queueString("Reverse", vpAnnounceCommonSymbols);
+        vp_queueStringTableEntry(state.fm_reverse ? &currentLanguage->on
+                                                  : &currentLanguage->off);
+        vp_queuePrompt(PROMPT_RECEIVE);
+        vp_queueFrequency(state.channel.rx_frequency);
+        vp_queuePrompt(PROMPT_TRANSMIT);
+        vp_queueFrequency(state.channel.tx_frequency);
+        vp_play();
+    }
+}
+
+static void _ui_clearTemporaryFmActions(bool *sync_rtx)
+{
+    bool changed = false;
+
+    if(state.fm_monitor)
+    {
+        state.fm_monitor = false;
+        changed = true;
+    }
+
+    if(state.fm_reverse)
+    {
+        freq_t tmp = state.channel.rx_frequency;
+        state.channel.rx_frequency = state.channel.tx_frequency;
+        state.channel.tx_frequency = tmp;
+        state.fm_reverse = false;
+        changed = true;
+    }
+
+    if(changed)
+        *sync_rtx = true;
+}
+
+static void _ui_announceScanState(bool enabled)
+{
+    if(state.settings.vpLevel < vpLow)
+        return;
+
+    vp_flush();
+    vp_queueString("Scan", vpAnnounceCommonSymbols);
+    vp_queueStringTableEntry(enabled ? &currentLanguage->on : &currentLanguage->off);
+    vp_play();
+}
+
+static void _ui_getScanBounds(const freq_t current, freq_t *minFreq, freq_t *maxFreq)
+{
+    const hwInfo_t *hwinfo = platform_getHwInfo();
+
+    *minFreq = 0;
+    *maxFreq = 0;
+
+    if(hwinfo->vhf_band &&
+       current >= (hwinfo->vhf_minFreq * 1000000u) &&
+       current <= (hwinfo->vhf_maxFreq * 1000000u))
+    {
+        *minFreq = hwinfo->vhf_minFreq * 1000000u;
+        *maxFreq = hwinfo->vhf_maxFreq * 1000000u;
+        return;
+    }
+
+    if(hwinfo->uhf_band &&
+       current >= (hwinfo->uhf_minFreq * 1000000u) &&
+       current <= (hwinfo->uhf_maxFreq * 1000000u))
+    {
+        *minFreq = hwinfo->uhf_minFreq * 1000000u;
+        *maxFreq = hwinfo->uhf_maxFreq * 1000000u;
+        return;
+    }
+
+    if(hwinfo->vhf_band)
+    {
+        *minFreq = hwinfo->vhf_minFreq * 1000000u;
+        *maxFreq = hwinfo->vhf_maxFreq * 1000000u;
+        return;
+    }
+
+    if(hwinfo->uhf_band)
+    {
+        *minFreq = hwinfo->uhf_minFreq * 1000000u;
+        *maxFreq = hwinfo->uhf_maxFreq * 1000000u;
+    }
+}
+
+static void _ui_stepVfoScan(bool *sync_rtx)
+{
+    freq_t minFreq;
+    freq_t maxFreq;
+    const freq_t step = freq_steps[state.step_index];
+    const int32_t shift = (int32_t) state.channel.tx_frequency - (int32_t) state.channel.rx_frequency;
+
+    _ui_getScanBounds(state.channel.rx_frequency, &minFreq, &maxFreq);
+    if((minFreq == 0) || (maxFreq == 0))
+        return;
+
+    if((state.channel.rx_frequency + step) > maxFreq)
+        state.channel.rx_frequency = minFreq;
+    else
+        state.channel.rx_frequency += step;
+
+    state.channel.tx_frequency = state.channel.rx_frequency + shift;
+    if(!_ui_freq_check_limits(state.channel.tx_frequency))
+        state.channel.tx_frequency = state.channel.rx_frequency;
+
+    *sync_rtx = true;
+    redraw_needed = true;
+}
+
+static void _ui_stopVfoScan(bool *sync_rtx, bool announce)
+{
+    if(state.tuner_mode != SCAN)
+        return;
+
+    state.tuner_mode = VFO;
+    ui_state.scan_was_open = false;
+    ui_state.scan_next_tick = 0;
+    ui_state.scan_resume_tick = 0;
+    if(announce)
+        _ui_announceScanState(false);
+    *sync_rtx = true;
+}
+
+static void _ui_toggleVfoScan(bool *sync_rtx)
+{
+    if(state.ui_screen != MAIN_VFO)
+        return;
+
+    if(state.tuner_mode == SCAN)
+    {
+        _ui_stopVfoScan(sync_rtx, true);
+        return;
+    }
+
+    state.tuner_mode = SCAN;
+    ui_state.scan_was_open = false;
+    ui_state.scan_next_tick = getTick();
+    ui_state.scan_resume_tick = getTick();
+    _ui_announceScanState(true);
+    *sync_rtx = true;
+}
+
+static void _ui_copyMemoryToVfo(const uint16_t channel_index, bool *sync_rtx)
+{
+    state.bank_enabled = false;
+
+    if(_ui_fsm_loadChannel(channel_index, sync_rtx) == -1)
+    {
+        _ui_announceStoreError();
+        return;
+    }
+
+    state.vfo_channel = state.channel;
+    state.ui_screen = MAIN_VFO;
+    state.tuner_mode = VFO;
+}
+
+static int _ui_overwriteMemoryWithVfo(const uint16_t channel_index)
+{
+    channel_t channel = {0};
+
+    if(cps_readChannel(&channel, channel_index + 1) == -1)
+        return -1;
+
+    channel_t replacement = state.channel;
+    if(replacement.name[0] == '\0')
+        strncpy(replacement.name, channel.name, sizeof(replacement.name));
+
+    return cps_writeChannel(replacement, channel_index);
+}
+
 static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
 {
     // If there is no keyboard left and right select the menu entry to edit
@@ -1533,21 +1821,58 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
         case 4:
             if(state.channel.mode == OPMODE_FM)
             {
-                state.channel.bandwidth++;
-                state.channel.bandwidth %= 2;
-                *sync_rtx = true;
-                vp_announceBandwidth(state.channel.bandwidth, queueFlags);
+                if(msg.long_press)
+                {
+                    _ui_toggleMonitor(sync_rtx);
+                }
+                else
+                {
+                    state.channel.bandwidth++;
+                    state.channel.bandwidth %= 2;
+                    *sync_rtx = true;
+                    vp_announceBandwidth(state.channel.bandwidth, queueFlags);
+                }
             }
             break;
         case 5:
-            _ui_cycleChannelMode(+1);
-            *sync_rtx = true;
-            vp_announceRadioMode(state.channel.mode, queueFlags);
+            if(msg.long_press && (state.ui_screen == MAIN_VFO))
+            {
+                _ui_toggleVfoScan(sync_rtx);
+            }
+            else if(msg.long_press && (state.channel.mode == OPMODE_FM))
+            {
+                _ui_toggleReverse(sync_rtx);
+            }
+            else
+            {
+                _ui_cycleChannelMode(+1);
+                *sync_rtx = true;
+                vp_announceRadioMode(state.channel.mode, queueFlags);
+            }
             break;
         case 6:
-            _ui_cycleChannelPower(+1);
-            *sync_rtx = true;
-            vp_announcePower(state.channel.power, queueFlags);
+            if(msg.long_press && (state.ui_screen == MAIN_VFO))
+            {
+                _ui_clearTemporaryFmActions(sync_rtx);
+                _ui_fsm_storeVfoToNewChannel(sync_rtx);
+                macro_menu = false;
+                macro_latched = false;
+            }
+            else if(msg.long_press && (state.ui_screen == MAIN_MEM))
+            {
+                _ui_clearTemporaryFmActions(sync_rtx);
+                ui_state.memory_edit_index = state.channel_index;
+                _ui_prepareChannelEdit();
+                state.ui_screen = MENU_CHANNEL_EDIT;
+                macro_menu = false;
+                macro_latched = false;
+            }
+            else
+            {
+                _ui_cycleChannelPower(+1);
+                *sync_rtx = true;
+                vp_announcePower(state.channel.power, queueFlags);
+            }
             break;
 #ifdef CONFIG_SCREEN_BRIGHTNESS
         case 7:
@@ -1831,6 +2156,7 @@ static bool _ui_isSettingsScreen(const uint8_t screen)
         case SETTINGS_DISPLAY:
         case SETTINGS_GPS:
         case SETTINGS_RADIO:
+        case SETTINGS_APRS:
         case SETTINGS_M17:
         case SETTINGS_FM:
         case SETTINGS_ACCESSIBILITY:
@@ -2010,6 +2336,10 @@ void ui_updateFSM(bool *sync_rtx)
         // unless is the MONI key for the MACRO functions
         if (_ui_exitStandby(now) && !(msg.keys & KEY_MONI))
             return;
+
+        if((state.tuner_mode == SCAN) && ((msg.keys & KEY_MONI) == 0))
+            _ui_stopVfoScan(sync_rtx, false);
+
         // If MONI is pressed, activate MACRO functions
         bool moniPressed = msg.keys & KEY_MONI;
         if(moniPressed || macro_latched)
@@ -2116,6 +2446,7 @@ void ui_updateFSM(bool *sync_rtx)
                     {
                         if(msg.long_press)
                         {
+                            _ui_clearTemporaryFmActions(sync_rtx);
                             _ui_fsm_storeVfoToNewChannel(sync_rtx);
                         }
                         else
@@ -2129,6 +2460,7 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                     else if(msg.keys & KEY_ESC)
                     {
+                        _ui_clearTemporaryFmActions(sync_rtx);
                         // Save VFO channel
                         state.vfo_channel = state.channel;
                         int result = _ui_fsm_loadChannel(state.channel_index, sync_rtx);
@@ -2342,6 +2674,8 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                     else if(msg.keys & KEY_ESC)
                     {
+                        state.fm_monitor = false;
+                        state.fm_reverse = false;
                         // Restore VFO channel
                         state.channel = state.vfo_channel;
                         // Update RTX configuration
@@ -2685,6 +3019,33 @@ void ui_updateFSM(bool *sync_rtx)
                     state.ui_screen = MENU_CHANNEL_EDIT;
                 }
                 break;
+            case MENU_CHANNEL_OVERWRITE:
+                if(msg.keys & KEY_ENTER)
+                {
+                    if(ui_state.edit_mode)
+                    {
+                        if(_ui_overwriteMemoryWithVfo(ui_state.memory_edit_index) == -1)
+                        {
+                            _ui_announceStoreError();
+                        }
+                        else
+                        {
+                            _ui_announceChannelStored(ui_state.memory_edit_index);
+                            ui_state.edit_mode = false;
+                            state.ui_screen = MAIN_VFO;
+                        }
+                    }
+                    else
+                    {
+                        ui_state.edit_mode = true;
+                    }
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    ui_state.edit_mode = false;
+                    state.ui_screen = MENU_CHANNEL_ACTION;
+                }
+                break;
             // Top menu screen
             case MENU_TOP:
                 if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
@@ -2713,6 +3074,9 @@ void ui_updateFSM(bool *sync_rtx)
                             state.ui_screen = MENU_GPS;
                             break;
 #endif
+                        case M_APRS:
+                            state.ui_screen = MENU_APRS;
+                            break;
                         case M_SETTINGS:
                             state.ui_screen = MENU_SETTINGS;
                             break;
@@ -2741,7 +3105,19 @@ void ui_updateFSM(bool *sync_rtx)
                     // Using 1 as parameter disables menu wrap around
                 {
                     if(state.ui_screen == MENU_CHANNEL_ACTION || state.ui_screen == MENU_BANK_ACTION)
-                        _ui_menuUp(channel_action_num);
+                    {
+                        if(state.ui_screen == MENU_CHANNEL_ACTION)
+                        {
+                            const uint8_t channel_actions = (ui_state.last_main_state == MAIN_VFO)
+                                                          ? channel_action_num
+                                                          : (channel_action_num - 1);
+                            _ui_menuUp(channel_actions);
+                        }
+                        else
+                        {
+                            _ui_menuUp(bank_action_num);
+                        }
+                    }
                     else
                         _ui_menuUp(1);
                 }
@@ -2771,11 +3147,14 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                     else if(state.ui_screen == MENU_CHANNEL_ACTION)
                     {
-                        _ui_menuDown(channel_action_num);
+                        const uint8_t channel_actions = (ui_state.last_main_state == MAIN_VFO)
+                                                      ? channel_action_num
+                                                      : (channel_action_num - 1);
+                        _ui_menuDown(channel_actions);
                     }
                     else if(state.ui_screen == MENU_BANK_ACTION)
                     {
-                        _ui_menuDown(channel_action_num);
+                        _ui_menuDown(bank_action_num);
                     }
                     else if(state.ui_screen == MENU_CONTACTS)
                     {
@@ -2856,7 +3235,12 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                     else if(state.ui_screen == MENU_CHANNEL_ACTION)
                     {
-                        switch(ui_state.menu_selected)
+                        uint8_t channel_action = ui_state.menu_selected;
+                        if((ui_state.last_main_state != MAIN_VFO) &&
+                           (channel_action >= CA_SAVE_VFO_HERE))
+                            channel_action++;
+
+                        switch(channel_action)
                         {
                             case CA_OPEN:
                                 if(ui_state.last_main_state == MAIN_VFO)
@@ -2869,6 +3253,22 @@ void ui_updateFSM(bool *sync_rtx)
                                 {
                                     _ui_prepareChannelEdit();
                                     state.ui_screen = MENU_CHANNEL_EDIT;
+                                }
+                                break;
+                            case CA_COPY_TO_VFO:
+                                _ui_copyMemoryToVfo(ui_state.memory_edit_index, sync_rtx);
+                                break;
+                            case CA_SAVE_VFO_HERE:
+                                if(ui_state.last_main_state == MAIN_VFO)
+                                {
+                                    channel_t target_channel = {0};
+                                    if(cps_readChannel(&target_channel, ui_state.memory_edit_index + 1) != -1)
+                                        strncpy(ui_state.new_channel_name, target_channel.name, sizeof(ui_state.new_channel_name));
+                                    else
+                                        ui_state.new_channel_name[0] = '\0';
+
+                                    ui_state.edit_mode = false;
+                                    state.ui_screen = MENU_CHANNEL_OVERWRITE;
                                 }
                                 break;
                             case CA_DELETE:
@@ -3012,6 +3412,25 @@ void ui_updateFSM(bool *sync_rtx)
                     _ui_menuBack(MENU_TOP);
                 break;
 #endif
+            case MENU_APRS:
+                if(msg.keys & KEY_ENTER)
+                {
+                    if((state.settings.aprs_enabled == true) &&
+                       (state.channel.mode == OPMODE_APRS))
+                    {
+                        state.aprs_send_beacon = true;
+                    }
+                }
+                else if(msg.keys & KEY_RIGHT || msg.keys & KNOB_RIGHT)
+                {
+                    state.ui_screen = SETTINGS_APRS;
+                    ui_state.menu_selected = 0;
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    _ui_menuBack(MENU_TOP);
+                }
+                break;
             // Settings menu screen
             case MENU_SETTINGS:
                 if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
@@ -3038,6 +3457,9 @@ void ui_updateFSM(bool *sync_rtx)
 #endif
                         case S_RADIO:
                             state.ui_screen = SETTINGS_RADIO;
+                            break;
+                        case S_APRS:
+                            state.ui_screen = SETTINGS_APRS;
                             break;
 #ifdef CONFIG_M17
                         case S_M17:
@@ -3450,6 +3872,135 @@ void ui_updateFSM(bool *sync_rtx)
                 else if(msg.keys & KEY_ESC)
                     _ui_menuBack(MENU_SETTINGS);
                 break;
+            case SETTINGS_APRS:
+                if(ui_state.edit_mode)
+                {
+                    switch(ui_state.menu_selected)
+                    {
+                        case APRS_ENABLED:
+                            if(msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT ||
+                               msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                               msg.keys & KNOB_LEFT || msg.keys & KNOB_RIGHT)
+                                state.settings.aprs_enabled = !state.settings.aprs_enabled;
+                            break;
+
+                        case APRS_AUTO_BEACON:
+                            if(msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT ||
+                               msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                               msg.keys & KNOB_LEFT || msg.keys & KNOB_RIGHT)
+                            {
+                                state.settings.aprs_auto_beacon = !state.settings.aprs_auto_beacon;
+                            }
+                            break;
+
+                        case APRS_KISS:
+                            if(msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT ||
+                               msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                               msg.keys & KNOB_LEFT || msg.keys & KNOB_RIGHT)
+                                state.settings.aprs_kiss_enabled = !state.settings.aprs_kiss_enabled;
+                            break;
+
+                        case APRS_SSID:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                                state.settings.aprs_ssid = (state.settings.aprs_ssid + 15) % 16;
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                                state.settings.aprs_ssid = (state.settings.aprs_ssid + 1) % 16;
+                            break;
+
+                        case APRS_INTERVAL:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
+                                if(state.settings.aprs_interval > 0)
+                                    state.settings.aprs_interval--;
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                if(state.settings.aprs_interval < 60)
+                                    state.settings.aprs_interval++;
+                            }
+                            break;
+
+                        case APRS_PATH:
+                            if(msg.keys & KEY_ENTER)
+                            {
+                                _ui_textInputConfirm(ui_state.new_aprs_path);
+                                strncpy(state.settings.aprs_path, ui_state.new_aprs_path,
+                                        sizeof(state.settings.aprs_path) - 1);
+                                state.settings.aprs_path[sizeof(state.settings.aprs_path) - 1] = '\0';
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                                    msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                            {
+                                _ui_textInputDel(ui_state.new_aprs_path);
+                            }
+                            else if(input_isCharPressed(msg))
+                            {
+                                _ui_textInputKeypad(ui_state.new_aprs_path,
+                                                    sizeof(ui_state.new_aprs_path) - 1,
+                                                    msg,
+                                                    true);
+                            }
+                            break;
+
+                        case APRS_COMMENT:
+                            if(msg.keys & KEY_ENTER)
+                            {
+                                _ui_textInputConfirm(ui_state.new_aprs_comment);
+                                strncpy(state.settings.aprs_comment, ui_state.new_aprs_comment,
+                                        sizeof(state.settings.aprs_comment) - 1);
+                                state.settings.aprs_comment[sizeof(state.settings.aprs_comment) - 1] = '\0';
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                                    msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                            {
+                                _ui_textInputDel(ui_state.new_aprs_comment);
+                            }
+                            else if(input_isCharPressed(msg))
+                            {
+                                _ui_textInputKeypad(ui_state.new_aprs_comment,
+                                                    sizeof(ui_state.new_aprs_comment) - 1,
+                                                    msg,
+                                                    false);
+                            }
+                            break;
+                    }
+
+                    if((ui_state.menu_selected != APRS_PATH) &&
+                       (ui_state.menu_selected != APRS_COMMENT) &&
+                       ((msg.keys & KEY_ENTER) || (msg.keys & KEY_ESC)))
+                    {
+                        ui_state.edit_mode = false;
+                    }
+                }
+                else if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                    _ui_menuUp(settings_aprs_num);
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                    _ui_menuDown(settings_aprs_num);
+                else if(msg.keys & KEY_ENTER)
+                {
+                    ui_state.edit_mode = true;
+                    if(ui_state.menu_selected == APRS_PATH)
+                        _ui_textInputPreset(ui_state.new_aprs_path,
+                                            sizeof(ui_state.new_aprs_path) - 1,
+                                            state.settings.aprs_path);
+                    else if(ui_state.menu_selected == APRS_COMMENT)
+                        _ui_textInputPreset(ui_state.new_aprs_comment,
+                                            sizeof(ui_state.new_aprs_comment) - 1,
+                                            state.settings.aprs_comment);
+                }
+                else if(msg.keys & KEY_ESC)
+                    _ui_menuBack(MENU_SETTINGS);
+                break;
 #ifdef CONFIG_M17
             // M17 Settings
             case SETTINGS_M17:
@@ -3550,6 +4101,59 @@ void ui_updateFSM(bool *sync_rtx)
                                 ui_state.edit_mode = !ui_state.edit_mode;
                             else if(msg.keys & KEY_ESC)
                                 ui_state.edit_mode = false;
+                            break;
+                        case M17_ENCRYPTION:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                                _ui_changeM17Encryption(-1);
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                                _ui_changeM17Encryption(+1);
+                            else if(msg.keys & KEY_ENTER)
+                                ui_state.edit_mode = !ui_state.edit_mode;
+                            else if(msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
+                        case M17_KEY_SLOT:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                                _ui_changeM17KeySlot(-1);
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                                _ui_changeM17KeySlot(+1);
+                            else if(msg.keys & KEY_ENTER)
+                                ui_state.edit_mode = !ui_state.edit_mode;
+                            else if(msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
+                        case M17_KEY_1:
+                        case M17_KEY_2:
+                        case M17_KEY_3:
+                        case M17_KEY_4:
+                        {
+                            uint8_t slot = ui_state.menu_selected - M17_KEY_1;
+                            if(msg.keys & KEY_ENTER)
+                            {
+                                _ui_textInputConfirm(ui_state.new_m17_key);
+                                strncpy(state.settings.m17_keys[slot], ui_state.new_m17_key,
+                                        M17_KEY_HEX_LEN);
+                                state.settings.m17_keys[slot][M17_KEY_HEX_LEN] = '\0';
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                                    msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                            {
+                                _ui_textInputDel(ui_state.new_m17_key);
+                            }
+                            else if(input_isCharPressed(msg))
+                            {
+                                _ui_textInputKeypad(ui_state.new_m17_key,
+                                                    M17_KEY_HEX_LEN,
+                                                    msg,
+                                                    true);
+                            }
+                            break;
+                        }
                     }
                 }
                 else
@@ -3575,6 +4179,14 @@ void ui_updateFSM(bool *sync_rtx)
                             vp_announceBuffer(&currentLanguage->metaText,
                                             true, true, ui_state.new_message);
                         }
+                        if((ui_state.menu_selected >= M17_KEY_1)
+                           && (ui_state.menu_selected <= M17_KEY_4))
+                        {
+                            uint8_t slot = ui_state.menu_selected - M17_KEY_1;
+                            _ui_textInputPreset(ui_state.new_m17_key,
+                                                M17_KEY_HEX_LEN,
+                                                state.settings.m17_keys[slot]);
+                        }
                     }
                     else if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
                         _ui_menuUp(settings_m17_num);
@@ -3584,6 +4196,14 @@ void ui_updateFSM(bool *sync_rtx)
                             _ui_changeM17Can(+1);
                     else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_CAN))
                             _ui_changeM17Can(-1);
+                    else if((msg.keys & KEY_RIGHT) && (ui_state.menu_selected == M17_ENCRYPTION))
+                            _ui_changeM17Encryption(+1);
+                    else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_ENCRYPTION))
+                            _ui_changeM17Encryption(-1);
+                    else if((msg.keys & KEY_RIGHT) && (ui_state.menu_selected == M17_KEY_SLOT))
+                            _ui_changeM17KeySlot(+1);
+                    else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_KEY_SLOT))
+                            _ui_changeM17KeySlot(-1);
                     else if(msg.keys & KEY_ESC)
                     {
                         *sync_rtx = true;
@@ -3598,43 +4218,80 @@ void ui_updateFSM(bool *sync_rtx)
                     if (msg.keys & KEY_ESC)
                         ui_state.edit_mode = false;
 
-                    switch (ui_state.menu_selected)
+                    switch(ui_state.menu_selected)
                     {
-                        case CTCSS_Tone:
-                            if (msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                        case FM_RX_TONE:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
                             {
-                                if (state.channel.fm.txTone == 0)
-                                {
-                                    state.channel.fm.txTone =
-                                        CTCSS_FREQ_NUM - 1;
-                                }
+                                if(state.channel.fm.rxTone == 0)
+                                    state.channel.fm.rxTone = CTCSS_FREQ_NUM - 1;
                                 else
-                                {
-                                    state.channel.fm.txTone--;
-                                }
+                                    state.channel.fm.rxTone--;
                             }
-                            else if (msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
                             {
-                                state.channel.fm.txTone++;
-                            } else if (msg.keys & KEY_ENTER) {
+                                state.channel.fm.rxTone++;
+                            }
+                            else if(msg.keys & KEY_ENTER)
+                            {
                                 ui_state.edit_mode = false;
                             }
-                            state.channel.fm.txTone %= CTCSS_FREQ_NUM;
-                            state.channel.fm.rxTone = state.channel.fm.txTone;
+
+                            state.channel.fm.rxTone %= CTCSS_FREQ_NUM;
                             *sync_rtx = true;
+                            vp_announceCTCSS(state.channel.fm.rxToneEn,
+                                             state.channel.fm.rxTone,
+                                             state.channel.fm.txToneEn,
+                                             state.channel.fm.txTone,
+                                             queueFlags | vpqIncludeDescriptions);
                             break;
-                        case CTCSS_Enabled:
-                            if (msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+
+                        case FM_TX_TONE:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
+                                if(state.channel.fm.txTone == 0)
+                                    state.channel.fm.txTone = CTCSS_FREQ_NUM - 1;
+                                else
+                                    state.channel.fm.txTone--;
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                state.channel.fm.txTone++;
+                            }
+                            else if(msg.keys & KEY_ENTER)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+
+                            state.channel.fm.txTone %= CTCSS_FREQ_NUM;
+                            *sync_rtx = true;
+                            vp_announceCTCSS(state.channel.fm.rxToneEn,
+                                             state.channel.fm.rxTone,
+                                             state.channel.fm.txToneEn,
+                                             state.channel.fm.txTone,
+                                             queueFlags | vpqIncludeDescriptions);
+                            break;
+
+                        case FM_TONE_MODE:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
                             {
                                 _ui_handleToneSelectScroll(true);
-                            } else if (msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            }
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
                             {
                                 _ui_handleToneSelectScroll(false);
-                            } else if (msg.keys & KEY_ENTER) {
+                            }
+                            else if(msg.keys & KEY_ENTER)
+                            {
                                 ui_state.edit_mode = false;
                             }
 
                             *sync_rtx = true;
+                            vp_announceCTCSS(state.channel.fm.rxToneEn,
+                                             state.channel.fm.rxTone,
+                                             state.channel.fm.txToneEn,
+                                             state.channel.fm.txTone,
+                                             queueFlags | vpqIncludeDescriptions);
                             break;
                     }
                 }
@@ -3642,10 +4299,6 @@ void ui_updateFSM(bool *sync_rtx)
                     _ui_menuUp(settings_fm_num);
                 else if (msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
                     _ui_menuDown(settings_fm_num);
-                else if (msg.keys & KEY_ENTER)
-                    ui_state.edit_mode = !ui_state.edit_mode;
-                else if (msg.keys & KEY_ESC)
-                    _ui_menuBack(MENU_SETTINGS);
                 else if (msg.keys & KEY_ENTER)
                     ui_state.edit_mode = !ui_state.edit_mode;
                 else if (msg.keys & KEY_ESC)
@@ -3758,6 +4411,9 @@ void ui_updateFSM(bool *sync_rtx)
 
         // Enable Tx only if in MAIN_VFO or MAIN_MEM states
         bool inMemOrVfo = (state.ui_screen == MAIN_VFO) || (state.ui_screen == MAIN_MEM);
+        if(!inMemOrVfo)
+            _ui_clearTemporaryFmActions(sync_rtx);
+
         if ((macro_menu == true) || ((inMemOrVfo == false) && (state.txDisable == false)))
         {
             state.txDisable = true;
@@ -3789,6 +4445,35 @@ void ui_updateFSM(bool *sync_rtx)
     }
     else if(event.type == EVENT_STATUS)
     {
+        if(state.tuner_mode == SCAN)
+        {
+            if((state.ui_screen != MAIN_VFO) || txOngoing)
+            {
+                _ui_stopVfoScan(sync_rtx, true);
+            }
+            else
+            {
+                bool squelchOpen = rtx_rxSquelchOpen();
+
+                if(squelchOpen)
+                {
+                    ui_state.scan_was_open = true;
+                    ui_state.scan_resume_tick = now + 1500;
+                }
+                else if(ui_state.scan_was_open && (now >= ui_state.scan_resume_tick))
+                {
+                    ui_state.scan_was_open = false;
+                    ui_state.scan_next_tick = now;
+                }
+
+                if((ui_state.scan_was_open == false) && (now >= ui_state.scan_next_tick))
+                {
+                    _ui_stepVfoScan(sync_rtx);
+                    ui_state.scan_next_tick = now + 200;
+                }
+            }
+        }
+
 #ifdef CONFIG_GPS
         if ((state.ui_screen == MENU_GPS) &&
             (!vp_isPlaying()) &&
@@ -3890,6 +4575,9 @@ bool ui_updateGUI()
         case MENU_CHANNEL_DELETE:
             _ui_drawMenuChannelDelete(&ui_state);
             break;
+        case MENU_CHANNEL_OVERWRITE:
+            _ui_drawMenuChannelOverwrite(&ui_state);
+            break;
         // Contacts menu screen
         case MENU_CONTACTS:
             _ui_drawMenuContacts(&ui_state);
@@ -3909,6 +4597,9 @@ bool ui_updateGUI()
             _ui_drawMenuGPS();
             break;
 #endif
+        case MENU_APRS:
+            _ui_drawMenuAPRS(&ui_state);
+            break;
         // Settings menu screen
         case MENU_SETTINGS:
             _ui_drawMenuSettings(&ui_state);
@@ -3956,6 +4647,9 @@ bool ui_updateGUI()
             _ui_drawSettingsGPS(&ui_state);
             break;
 #endif
+        case SETTINGS_APRS:
+            _ui_drawSettingsAPRS(&ui_state);
+            break;
 #ifdef CONFIG_M17
         // M17 settings screen
         case SETTINGS_M17:

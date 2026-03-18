@@ -206,13 +206,14 @@ static int _channelToMemory(mduv3x0Channel_t *dst, const channel_t *src)
     memset(dst, 0, sizeof(*dst));
 
     if((src->mode != OPMODE_FM)
+       && (src->mode != OPMODE_APRS)
 #if defined(CONFIG_M17)
        && (src->mode != OPMODE_M17)
 #endif
        && (src->mode != OPMODE_DMR))
         return -1;
 
-    dst->channel_mode = src->mode;
+    dst->channel_mode = (src->mode == OPMODE_APRS) ? OPMODE_FM : src->mode;
     dst->bandwidth = (src->bandwidth == BW_12_5) ? 0 : 1;
     dst->rx_only = src->rx_only;
     dst->scan_list_index = src->scanList_index;
@@ -230,12 +231,12 @@ static int _channelToMemory(mduv3x0Channel_t *dst, const channel_t *src)
     for(uint16_t i = 0; i < 16; i++)
         dst->name[i] = (uint8_t) src->name[i];
 
-    if(src->mode == OPMODE_FM)
+    if((src->mode == OPMODE_FM) || (src->mode == OPMODE_APRS))
     {
-        if(src->fm.rxToneEn)
+        if((src->mode == OPMODE_FM) && src->fm.rxToneEn)
             dst->ctcss_dcs_receive = (uint16_t) _binToBcd(ctcss_tone[src->fm.rxTone]);
 
-        if(src->fm.txToneEn)
+        if((src->mode == OPMODE_FM) && src->fm.txToneEn)
             dst->ctcss_dcs_transmit = (uint16_t) _binToBcd(ctcss_tone[src->fm.txTone]);
     }
     else
@@ -352,6 +353,8 @@ static int _readChannelAtAddress(channel_t *channel, uint32_t addr)
                                                         : (chData.repeater_slot & 0x03);
         channel->m17.encr = PLAIN;
         channel->m17.gps_mode = NO_GPS;
+        channel->m17.key_index = 0;
+        channel->m17.enc_subtype = 0;
 #else
         channel->dmr.contact_index = chData.contact_name_index;
         channel->dmr.dmr_timeslot      = chData.repeater_slot;

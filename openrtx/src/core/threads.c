@@ -89,12 +89,19 @@ void *ui_threadFunc(void *arg)
             rtx_cfg.txToneEn    = state.channel.fm.txToneEn;
             rtx_cfg.txTone      = ctcss_tone[state.channel.fm.txTone];
             rtx_cfg.toneEn      = state.tone_enabled;
+            rtx_cfg.monitor     = state.fm_monitor;
 
             // Enable Tx if channel allows it and we are in UI main screen
             rtx_cfg.txDisable = state.channel.rx_only || state.txDisable;
 
             // Copy new M17 CAN, source and destination addresses
-            rtx_cfg.can = state.settings.m17_can;
+            rtx_cfg.txCan = state.settings.m17_can;
+            rtx_cfg.rxCan = state.settings.m17_can;
+            if((state.tuner_mode != VFO) && (state.channel.mode == OPMODE_M17))
+            {
+                rtx_cfg.txCan = state.channel.m17.txCan;
+                rtx_cfg.rxCan = state.channel.m17.rxCan;
+            }
             rtx_cfg.canRxEn = state.settings.m17_can_rx;
             strncpy(rtx_cfg.source_address,      state.settings.callsign, 10);
             strncpy(rtx_cfg.destination_address, state.settings.m17_dest, 10);

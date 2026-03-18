@@ -413,6 +413,57 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
     return 0;
 }
 
+int _ui_getAPRSEntryName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= settings_aprs_num)
+        return -1;
+
+    sniprintf(buf, max_len, "%s", settings_aprs_items[index]);
+    return 0;
+}
+
+int _ui_getAPRSValueName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= settings_aprs_num)
+        return -1;
+
+    switch(index)
+    {
+        case APRS_ENABLED:
+            sniprintf(buf, max_len, "%s", last_state.settings.aprs_enabled ? currentLanguage->on : currentLanguage->off);
+            break;
+        case APRS_AUTO_BEACON:
+            sniprintf(buf, max_len, "%s", last_state.settings.aprs_auto_beacon ? currentLanguage->on : currentLanguage->off);
+            break;
+        case APRS_KISS:
+            sniprintf(buf, max_len, "%s", last_state.settings.aprs_kiss_enabled ? currentLanguage->on : currentLanguage->off);
+            break;
+        case APRS_SSID:
+            sniprintf(buf, max_len, "%u", last_state.settings.aprs_ssid);
+            break;
+        case APRS_INTERVAL:
+            sniprintf(buf, max_len, "%umin", last_state.settings.aprs_interval);
+            break;
+        case APRS_PATH:
+            sniprintf(buf, max_len, "%s", last_state.settings.aprs_path);
+            break;
+        case APRS_COMMENT:
+            if(strlen(last_state.settings.aprs_comment) > 8)
+            {
+                char tmp[10] = {0};
+                memcpy(tmp, last_state.settings.aprs_comment, 8);
+                sniprintf(buf, max_len, "%s*", tmp);
+            }
+            else
+            {
+                sniprintf(buf, max_len, "%s", last_state.settings.aprs_comment);
+            }
+            break;
+    }
+
+    return 0;
+}
+
 #ifdef CONFIG_M17
 int _ui_getM17EntryName(char *buf, uint8_t max_len, uint8_t index)
 {
@@ -454,6 +505,39 @@ int _ui_getM17ValueName(char *buf, uint8_t max_len, uint8_t index)
                                                            currentLanguage->on :
                                                            currentLanguage->off);
             break;
+
+        case M17_ENCRYPTION:
+            if(last_state.settings.m17_default_encryption == AES)
+                sniprintf(buf, max_len, "AES128");
+            else if(last_state.settings.m17_default_encryption == SCRAMBLER)
+                sniprintf(buf, max_len, "SCR %d",
+                          8 << last_state.settings.m17_default_enc_subtype);
+            else
+                sniprintf(buf, max_len, "Plain");
+            break;
+
+        case M17_KEY_SLOT:
+            if(last_state.settings.m17_default_key_index == 0)
+                sniprintf(buf, max_len, "Off");
+            else
+                sniprintf(buf, max_len, "%d", last_state.settings.m17_default_key_index);
+            break;
+
+        case M17_KEY_1:
+        case M17_KEY_2:
+        case M17_KEY_3:
+        case M17_KEY_4:
+        {
+            uint8_t slot = index - M17_KEY_1;
+            size_t keyLen = strnlen(last_state.settings.m17_keys[slot], M17_KEY_HEX_LEN);
+            if(keyLen == 0)
+                sniprintf(buf, max_len, "Unset");
+            else if(keyLen > 6)
+                sniprintf(buf, max_len, "%.6s*", last_state.settings.m17_keys[slot]);
+            else
+                sniprintf(buf, max_len, "%s", last_state.settings.m17_keys[slot]);
+            break;
+        }
     }
 
     return 0;
@@ -471,21 +555,30 @@ int _ui_getFMEntryName(char* buf, uint8_t max_len, uint8_t index)
 
 int _ui_getFMValueName(char* buf, uint8_t max_len, uint8_t index)
 {
-    if (index >= settings_fm_num)
+    if(index >= settings_fm_num)
         return -1;
 
-    switch (index) {
-        case CTCSS_Tone: {
+    switch(index)
+    {
+        case FM_RX_TONE:
+        {
+            uint16_t tone = ctcss_tone[last_state.channel.fm.rxTone];
+            sniprintf(buf, max_len, "%d.%d", (tone / 10), (tone % 10));
+            break;
+        }
+
+        case FM_TX_TONE:
+        {
             uint16_t tone = ctcss_tone[last_state.channel.fm.txTone];
             sniprintf(buf, max_len, "%d.%d", (tone / 10), (tone % 10));
             break;
         }
 
-        case CTCSS_Enabled:
+        case FM_TONE_MODE:
             sniprintf(buf, max_len, "%s",
-                    _ui_getToneEnabledString(last_state.channel.fm.txToneEn,
-                                             last_state.channel.fm.rxToneEn,
-                                             false));
+                      _ui_getToneEnabledString(last_state.channel.fm.txToneEn,
+                                               last_state.channel.fm.rxToneEn,
+                                               false));
             break;
     }
 
@@ -662,8 +755,23 @@ int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getChannelActionName(char *buf, uint8_t max_len, uint8_t index)
 {
-    if(index >= channel_action_num) return -1;
-    sniprintf(buf, max_len, "%s", channel_action_items[index]);
+    const uint8_t channel_actions = (ui_state.last_main_state == MAIN_VFO)
+                                  ? channel_action_num
+                                  : (channel_action_num - 1);
+    uint8_t item_index = index;
+
+    if(index >= channel_actions) return -1;
+    if((ui_state.last_main_state != MAIN_VFO) && (index >= CA_SAVE_VFO_HERE))
+        item_index++;
+
+    sniprintf(buf, max_len, "%s", channel_action_items[item_index]);
+    return 0;
+}
+
+int _ui_getBankActionName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= bank_action_num) return -1;
+    sniprintf(buf, max_len, "%s", bank_action_items[index]);
     return 0;
 }
 
@@ -709,6 +817,8 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
         case CE_MODE:
             if(last_state.channel.mode == OPMODE_M17)
                 sniprintf(buf, max_len, "M17");
+            else if(last_state.channel.mode == OPMODE_APRS)
+                sniprintf(buf, max_len, "APRS");
             else
                 sniprintf(buf, max_len, "FM");
             return 0;
@@ -785,7 +895,7 @@ void _ui_drawMenuBankAction(ui_state_t* ui_state)
     _ui_clearScreen();
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, "Zone Menu");
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelActionName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getBankActionName);
 }
 
 void _ui_drawMenuBankRename(ui_state_t* ui_state)
@@ -857,6 +967,23 @@ void _ui_drawMenuChannelDelete(ui_state_t* ui_state)
 
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, "Delete");
+
+    gfx_printLine(1, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.menu_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
+
+    gfx_printLine(2, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.message_font,
+                  TEXT_ALIGN_CENTER, color_white,
+                  "%s", ui_state->edit_mode ? currentLanguage->pressEnterTwice : "Press Enter");
+}
+
+void _ui_drawMenuChannelOverwrite(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Overwrite");
 
     gfx_printLine(1, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                   layout.horizontal_pad, layout.menu_font,
@@ -1007,6 +1134,40 @@ void _ui_drawMenuGPS()
                      last_state.gps_data.active_sats);
 }
 #endif
+
+void _ui_drawMenuAPRS(ui_state_t* ui_state)
+{
+    (void) ui_state;
+
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "APRS");
+
+    gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
+              color_white, "Mode:%s  GPS:%s",
+              (last_state.channel.mode == OPMODE_APRS) ? "APRS" : "FM",
+              (last_state.gps_data.fix_quality > 0) ? "Fix" : "NoFix");
+
+    gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "Beacon:%s  KISS:%s",
+              last_state.settings.aprs_auto_beacon ? "Auto" : "Manual",
+              last_state.settings.aprs_kiss_enabled ? "On" : "Off");
+
+    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+              color_white, "Path:%s", last_state.settings.aprs_path);
+
+    if((last_state.settings.aprs_enabled == true) &&
+       (last_state.channel.mode == OPMODE_APRS))
+    {
+        gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  yellow_fab413, "Enter: Beacon  >:Cfg");
+    }
+    else
+    {
+        gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                  yellow_fab413, "Set APRS mode, >:Cfg");
+    }
+}
 
 void _ui_drawMenuSettings(ui_state_t* ui_state)
 {
@@ -1245,6 +1406,18 @@ void _ui_drawSettingsM17(ui_state_t* ui_state)
                           layout.horizontal_pad, layout.message_font,
                           TEXT_ALIGN_CENTER, color_white, ui_state->new_message);
     }
+    else if((ui_state->edit_mode) && (ui_state->menu_selected >= M17_KEY_1)
+            && (ui_state->menu_selected <= M17_KEY_4))
+    {
+        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
+        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
+        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                      layout.horizontal_pad, layout.message_font,
+                      TEXT_ALIGN_CENTER, color_white, ui_state->new_m17_key);
+    }
     else
     {
         _ui_drawMenuListValue(ui_state, ui_state->menu_selected, _ui_getM17EntryName,
@@ -1391,6 +1564,42 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
     }
 }
 
+void _ui_drawSettingsAPRS(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "APRS");
+
+    if((ui_state->edit_mode) && (ui_state->menu_selected == APRS_PATH))
+    {
+        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
+        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
+        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                      layout.horizontal_pad, layout.menu_font,
+                      TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_aprs_path);
+    }
+    else if((ui_state->edit_mode) && (ui_state->menu_selected == APRS_COMMENT))
+    {
+        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
+        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
+        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                      layout.horizontal_pad, layout.message_font,
+                      TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_aprs_comment);
+    }
+    else
+    {
+        _ui_drawMenuListValue(ui_state, ui_state->menu_selected,
+                              _ui_getAPRSEntryName,
+                              _ui_getAPRSValueName);
+    }
+}
+
 void _ui_drawMacroTop()
 {
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
@@ -1494,7 +1703,7 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
     if (last_state.channel.mode == OPMODE_FM)
     {
         char bw_str[12] = { 0 };
-        switch (last_state.channel.bandwidth)
+        switch(last_state.channel.bandwidth)
         {
             case BW_12_5:
                 sniprintf(bw_str, 12, "  BW12.5");
@@ -1522,7 +1731,6 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER,
               yellow_fab413, "5");
 
-    char mode_str[12] = "";
     switch(last_state.channel.mode)
     {
         case OPMODE_FM:
@@ -1540,10 +1748,10 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          M17");
             break;
 #endif
+        case OPMODE_APRS:
+            gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "         APRS");
+            break;
     }
-
-    gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER,
-              color_white, mode_str);
 
 #if defined(CONFIG_UI_NO_KEYBOARD)
         if (ui_state->macro_menu_selected == 5)
@@ -1551,8 +1759,6 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_RIGHT,
               yellow_fab413, "6        ");
 
-    // Compute x.y format for TX power avoiding to pull in floating point math.
-    // Remember that power is expressed in mW!
     unsigned int power_int = (last_state.channel.power / 1000);
     unsigned int power_dec = (last_state.channel.power % 1000) / 100;
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_RIGHT,

@@ -48,7 +48,7 @@ Callsign M17LinkSetupFrame::getDestination()
     return Callsign(data.dst);
 }
 
-streamType_t M17LinkSetupFrame::getType()
+streamType_t M17LinkSetupFrame::getType() const
 {
     // NOTE: M17 fields are big-endian, we need to swap bytes
     streamType_t type = data.type;
@@ -64,6 +64,11 @@ void M17LinkSetupFrame::setType(streamType_t type)
 }
 
 meta_t& M17LinkSetupFrame::metadata()
+{
+    return data.meta;
+}
+
+const meta_t& M17LinkSetupFrame::metadata() const
 {
     return data.meta;
 }

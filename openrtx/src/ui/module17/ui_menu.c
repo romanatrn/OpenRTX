@@ -201,6 +201,36 @@ int _ui_getM17ValueName(char *buf, uint8_t max_len, uint8_t index)
         case M_CAN_RX:
             snprintf(buf, max_len, "%s", (last_state.settings.m17_can_rx) ? "on" : "off");
             break;
+        case M_ENCRYPTION:
+            if(last_state.settings.m17_default_encryption == AES)
+                snprintf(buf, max_len, "AES128");
+            else if(last_state.settings.m17_default_encryption == SCRAMBLER)
+                snprintf(buf, max_len, "SCR %d",
+                         8 << last_state.settings.m17_default_enc_subtype);
+            else
+                snprintf(buf, max_len, "Plain");
+            break;
+        case M_KEY_SLOT:
+            if(last_state.settings.m17_default_key_index == 0)
+                snprintf(buf, max_len, "Off");
+            else
+                snprintf(buf, max_len, "%d", last_state.settings.m17_default_key_index);
+            break;
+        case M_KEY_1:
+        case M_KEY_2:
+        case M_KEY_3:
+        case M_KEY_4:
+        {
+            uint8_t slot = index - M_KEY_1;
+            size_t keyLen = strnlen(last_state.settings.m17_keys[slot], M17_KEY_HEX_LEN);
+            if(keyLen == 0)
+                snprintf(buf, max_len, "Unset");
+            else if(keyLen > 6)
+                snprintf(buf, max_len, "%.6s*", last_state.settings.m17_keys[slot]);
+            else
+                snprintf(buf, max_len, "%s", last_state.settings.m17_keys[slot]);
+            break;
+        }
     }
 
     return 0;

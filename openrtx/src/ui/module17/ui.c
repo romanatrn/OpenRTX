@@ -82,7 +82,13 @@ const char *m17_items[] =
     "Callsign",
     "Meta Txt",
     "CAN",
-    "CAN RX Check"
+    "CAN RX Check",
+    "Encryption",
+    "Key Slot",
+    "Key 1",
+    "Key 2",
+    "Key 3",
+    "Key 4"
 };
 
 const char *module17_items[] =
@@ -349,6 +355,37 @@ static void _ui_changeCAN(int variation)
     state.settings.m17_can = can;
 }
 
+static void _ui_changeEncryption(int variation)
+{
+    static const uint8_t modes[] = { PLAIN, SCRAMBLER, SCRAMBLER, SCRAMBLER, AES };
+    static const uint8_t subtypes[] = { 0, 0, 1, 2, 0 };
+    int index = 0;
+
+    if(state.settings.m17_default_encryption == AES)
+        index = 4;
+    else if(state.settings.m17_default_encryption == SCRAMBLER)
+        index = 1 + state.settings.m17_default_enc_subtype;
+
+    index += variation;
+    if(index < 0)
+        index = 0;
+    if(index > 4)
+        index = 4;
+
+    state.settings.m17_default_encryption = modes[index];
+    state.settings.m17_default_enc_subtype = subtypes[index];
+}
+
+static void _ui_changeKeySlot(int variation)
+{
+    int slot = state.settings.m17_default_key_index + variation;
+    if(slot < 0)
+        slot = 0;
+    if(slot > M17_KEY_SLOTS)
+        slot = M17_KEY_SLOTS;
+    state.settings.m17_default_key_index = slot;
+}
+
 static void _ui_changeWiper(uint16_t *wiper, int variation)
 {
     uint16_t value = *wiper;
@@ -508,7 +545,23 @@ void ui_updateFSM(bool *sync_rtx)
             case MAIN_VFO:
                 if(ui_state.edit_mode)
                 {
-                    if(msg.keys & KEY_ENTER)
+                    if((ui_state.menu_selected >= M_KEY_1) && (ui_state.menu_selected <= M_KEY_4))
+                    {
+                        uint8_t slot = ui_state.menu_selected - M_KEY_1;
+                        if(msg.keys & KEY_ENTER)
+                        {
+                            _ui_textInputConfirm(ui_state.new_m17_key);
+                            strncpy(state.settings.m17_keys[slot], ui_state.new_m17_key,
+                                    M17_KEY_HEX_LEN);
+                            state.settings.m17_keys[slot][M17_KEY_HEX_LEN] = '\0';
+                            ui_state.edit_mode = false;
+                        }
+                        else if(msg.keys & KEY_ESC)
+                            ui_state.edit_mode = false;
+                        else
+                            _ui_textInputArrows(ui_state.new_m17_key, M17_KEY_HEX_LEN, msg);
+                    }
+                    else if(msg.keys & KEY_ENTER)
                     {
                         _ui_textInputConfirm(ui_state.new_callsign);
                         // Save selected callsign and disable input mode
@@ -717,6 +770,12 @@ void ui_updateFSM(bool *sync_rtx)
                             case M_CAN_RX:
                                 state.settings.m17_can_rx = !state.settings.m17_can_rx;
                                 break;
+                            case M_ENCRYPTION:
+                                _ui_changeEncryption(-1);
+                                break;
+                            case M_KEY_SLOT:
+                                _ui_changeKeySlot(-1);
+                                break;
                             default:
                                 state.ui_screen = SETTINGS_M17;
                         }
@@ -730,6 +789,12 @@ void ui_updateFSM(bool *sync_rtx)
                                 break;
                             case M_CAN_RX:
                                 state.settings.m17_can_rx = !state.settings.m17_can_rx;
+                                break;
+                            case M_ENCRYPTION:
+                                _ui_changeEncryption(+1);
+                                break;
+                            case M_KEY_SLOT:
+                                _ui_changeKeySlot(+1);
                                 break;
                             default:
                                 state.ui_screen = SETTINGS_M17;
@@ -749,6 +814,19 @@ void ui_updateFSM(bool *sync_rtx)
                                 ui_state.edit_message = true;
                                 _ui_textInputReset(ui_state.new_message);
                                 break;
+                            case M_KEY_1:
+                            case M_KEY_2:
+                            case M_KEY_3:
+                            case M_KEY_4:
+                            {
+                                uint8_t slot = ui_state.menu_selected - M_KEY_1;
+                                ui_state.edit_mode = true;
+                                _ui_textInputReset(ui_state.new_m17_key);
+                                strncpy(ui_state.new_m17_key, state.settings.m17_keys[slot],
+                                        M17_KEY_HEX_LEN);
+                                ui_state.new_m17_key[M17_KEY_HEX_LEN] = '\0';
+                                break;
+                            }
                             default:
                                 state.ui_screen = SETTINGS_M17;
                         }

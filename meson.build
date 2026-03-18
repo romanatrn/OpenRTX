@@ -58,11 +58,17 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/core/nvmem_access.c',
                'openrtx/src/rtx/rtx.cpp',
                'openrtx/src/rtx/OpMode_FM.cpp',
+               'openrtx/src/rtx/OpMode_APRS.cpp',
                'openrtx/src/rtx/OpMode_M17.cpp',
+               'openrtx/src/protocols/APRS/AX25.cpp',
+               'openrtx/src/protocols/APRS/APRSFrame.cpp',
+               'openrtx/src/protocols/APRS/AFSK1200.cpp',
+               'openrtx/src/protocols/APRS/KISS.cpp',
                'openrtx/src/protocols/M17/M17DSP.cpp',
                'openrtx/src/protocols/M17/M17Golay.cpp',
                'openrtx/src/protocols/M17/MetaText.cpp',
                'openrtx/src/protocols/M17/Callsign.cpp',
+               'openrtx/src/protocols/M17/M17Crypto.cpp',
                'openrtx/src/protocols/M17/M17Modulator.cpp',
                'openrtx/src/protocols/M17/M17Demodulator.cpp',
                'openrtx/src/protocols/M17/M17FrameEncoder.cpp',
@@ -1109,6 +1115,10 @@ m17_callsign_test = executable('m17_callsign_test',
 m17_metatext_test = executable('m17_metatext_test',
                       sources : unit_test_src + ['tests/unit/M17_metatext.cpp'],
                       kwargs  : unit_test_opts)
+
+m17_crypto_test = executable('m17_crypto_test',
+                    sources : unit_test_src + ['tests/unit/M17_crypto.cpp'],
+                    kwargs  : unit_test_opts)
                  
 m17_demodulator_test = executable('m17_demodulator_test',
                             sources: unit_test_src + ['tests/unit/M17_demodulator.cpp'],
@@ -1140,6 +1150,7 @@ test('M17 Demodulator Test',  m17_demodulator_test)
 test('M17 RRC Test',          m17_rrc_test)
 test('M17 Callsign Unit Test',          m17_callsign_test)
 test('M17 Meta Text Unit Test',         m17_metatext_test)
+test('M17 Crypto Unit Test',            m17_crypto_test)
 test('Codeplug Test',         cps_test)
 ## test('Linux InputStream Test', linux_inputStream_test)
 test('minmea conversion Test', minmea_conversion_test)

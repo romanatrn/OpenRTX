@@ -47,6 +47,9 @@ typedef struct
     bool       backup_eflash;
     bool       restore_eflash;
     bool       txDisable;
+    bool       aprs_send_beacon;
+    bool       fm_monitor;
+    bool       fm_reverse;
     uint8_t    step_index;
 }
 state_t;

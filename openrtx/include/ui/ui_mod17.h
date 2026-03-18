@@ -112,7 +112,13 @@ enum m17Items
     M_CALLSIGN = 0,
     M_METATEXT,
     M_CAN,
-    M_CAN_RX
+    M_CAN_RX,
+    M_ENCRYPTION,
+    M_KEY_SLOT,
+    M_KEY_1,
+    M_KEY_2,
+    M_KEY_3,
+    M_KEY_4
 };
 
 enum module17Items
@@ -204,6 +210,7 @@ typedef struct ui_state_t
 #endif
     char new_callsign[10];
     char new_message[53];
+    char new_m17_key[M17_KEY_HEX_LEN + 1];
     bool edit_message;
     // Which state to return to when we exit menu
     uint8_t last_main_state;

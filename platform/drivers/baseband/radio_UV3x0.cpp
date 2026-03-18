@@ -100,6 +100,13 @@ void radio_setOpmode(const enum opmode mode)
             C6000.setInputGain(-3);                 // Input gain in dB, as per TYT firmware
             break;
 
+        case OPMODE_APRS:
+            at1846s.setOpMode(AT1846S_OpMode::FM);
+            at1846s.setBandwidth(AT1846S_BW::_25);
+            C6000.fmMode();
+            C6000.setInputGain(+6);
+            break;
+
         case OPMODE_DMR:
             at1846s.setOpMode(AT1846S_OpMode::DMR);
             at1846s.setBandwidth(AT1846S_BW::_12P5);
@@ -203,6 +210,14 @@ void radio_enableTx()
         }
             break;
 
+        case OPMODE_APRS:
+        {
+            FmConfig cfg = (config->bandwidth == BW_12_5) ? FmConfig::BW_12p5kHz
+                                                          : FmConfig::BW_25kHz;
+            C6000.startAnalogTx(TxAudioSource::LINE_IN, cfg);
+        }
+            break;
+
         case OPMODE_M17:
             C6000.startAnalogTx(TxAudioSource::LINE_IN, FmConfig::BW_25kHz);
             break;
@@ -286,9 +301,9 @@ void radio_updateConfiguration()
     freq_t  *txCalPoints = calData.vhfCal.txFreq;
     uint8_t *loPwrCal    = calData.vhfCal.txLowPower;
     uint8_t *hiPwrCal    = calData.vhfCal.txHighPower;
-    uint8_t *qRangeCal   = (config->opMode == OPMODE_FM)
-                         ? calData.vhfCal.analogSendQrange
-                         : calData.vhfCal.sendQrange;
+     uint8_t *qRangeCal   = ((config->opMode == OPMODE_FM) || (config->opMode == OPMODE_APRS))
+                          ? calData.vhfCal.analogSendQrange
+                          : calData.vhfCal.sendQrange;
 
     if(currTxBand == BND_UHF)
     {
@@ -296,7 +311,7 @@ void radio_updateConfiguration()
         txCalPoints = calData.uhfCal.txFreq;
         loPwrCal    = calData.uhfCal.txLowPower;
         hiPwrCal    = calData.uhfCal.txHighPower;
-        qRangeCal   = (config->opMode == OPMODE_FM)
+        qRangeCal   = ((config->opMode == OPMODE_FM) || (config->opMode == OPMODE_APRS))
                     ? calData.uhfCal.analogSendQrange
                     : calData.uhfCal.sendQrange;
     }
@@ -313,7 +328,7 @@ void radio_updateConfiguration()
     C6000.setModAmplitude(0, Q);
 
     // Set bandwidth, only for analog FM mode
-    if(config->opMode == OPMODE_FM)
+    if((config->opMode == OPMODE_FM) || (config->opMode == OPMODE_APRS))
     {
         switch(config->bandwidth)
         {

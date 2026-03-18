@@ -93,13 +93,14 @@ void OpMode_FM::update(rtxStatus_t *const status, const bool newCfg)
         bool toneSql = ((status->rxToneEn == 1) && radio_checkRxDigitalSquelch());
 
         // Audio control
-        if((sqlOpen == false) && (rfSql || toneSql))
+        if((sqlOpen == false) && (status->monitor || rfSql || toneSql))
         {
             rxAudioPath = audioPath_request(SOURCE_RTX, SINK_SPK, PRIO_RX);
             if(rxAudioPath > 0) sqlOpen = true;
         }
 
-        if((sqlOpen == true) && (rfSql == false) && (toneSql == false))
+        if((sqlOpen == true) && (status->monitor == false) &&
+           (rfSql == false) && (toneSql == false))
         {
             audioPath_release(rxAudioPath);
             sqlOpen = false;

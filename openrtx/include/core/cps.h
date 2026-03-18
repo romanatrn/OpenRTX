@@ -14,9 +14,9 @@
 
 // Magic number to identify the binary file
 #define CPS_MAGIC 0x43585452
-// Codeplug version v0.1
+// Codeplug version v0.2
 #define CPS_VERSION_MAJOR  0
-#define CPS_VERSION_MINOR  1
+#define CPS_VERSION_MINOR  2
 #define CPS_VERSION_NUMBER (CPS_VERSION_MAJOR << 8) | CPS_VERSION_MINOR
 #define CPS_STR_SIZE 32
 
@@ -187,10 +187,12 @@ typedef struct
              txCan : 4;         //< Channel Access Number for TX
     uint8_t  mode  : 4,         //< Channel operation mode
              encr  : 4;         //< Encryption mode
-    uint8_t gps_mode;           //< Channel GPS mode
+    uint8_t gps_mode  : 4,      //< Channel GPS mode
+             key_index : 4;     //< M17 key slot (0 uses radio default)
+    uint8_t enc_subtype;        //< Encryption subtype
     uint16_t contact_index;     //< Index to retrieve data from contact list
 }
-__attribute__((packed)) m17Info_t; // 5B
+__attribute__((packed)) m17Info_t; // 6B
 
 /**
  * Data structure describing M17-specific contact fields.
