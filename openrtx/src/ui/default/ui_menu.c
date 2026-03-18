@@ -24,6 +24,7 @@
 
 /* UI main screen helper functions, their implementation is in "ui_main.c" */
 extern void _ui_drawMainBottom();
+extern void _ui_drawVFOMiddleInput(ui_state_t* ui_state);
 extern const char* _ui_getToneEnabledString(bool tone_tx_enable,
                             bool tone_rx_enable, bool use_abbreviation);
 
@@ -629,10 +630,28 @@ int _ui_getChannelName(char *buf, uint8_t max_len, uint8_t index)
     return result;
 }
 
+int _ui_getChannelMenuName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index == 0)
+    {
+        sniprintf(buf, max_len, "Add New");
+        return 0;
+    }
+
+    return _ui_getChannelName(buf, max_len, index - 1);
+}
+
 int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
 {
     if(index >= channel_edit_num) return -1;
     sniprintf(buf, max_len, "%s", channel_edit_items[index]);
+    return 0;
+}
+
+int _ui_getChannelActionName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= channel_action_num) return -1;
+    sniprintf(buf, max_len, "%s", channel_action_items[index]);
     return 0;
 }
 
@@ -654,6 +673,17 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
             sniprintf(buf, max_len, "%lu.%05lu",
                       (unsigned long) (last_state.channel.tx_frequency / 1000000),
                       (unsigned long) ((last_state.channel.tx_frequency % 1000000) / 10));
+            return 0;
+        case CE_MODE:
+            if(last_state.channel.mode == OPMODE_M17)
+                sniprintf(buf, max_len, "M17");
+            else
+                sniprintf(buf, max_len, "FM");
+            return 0;
+        case CE_POWER:
+            sniprintf(buf, max_len, "%lu.%01luW",
+                      (unsigned long) (last_state.channel.power / 1000),
+                      (unsigned long) ((last_state.channel.power % 1000) / 100));
             return 0;
         default:
             buf[0] = '\0';
@@ -697,7 +727,15 @@ void _ui_drawMenuChannel(ui_state_t* ui_state)
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->channels);
     // Print channel entries
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelMenuName);
+}
+
+void _ui_drawMenuChannelAction(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Channel Menu");
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelActionName);
 }
 
 void _ui_drawMenuChannelEdit(ui_state_t* ui_state)
@@ -721,6 +759,16 @@ void _ui_drawMenuChannelRename(ui_state_t* ui_state)
     gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                   layout.horizontal_pad, layout.input_font,
                   TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
+}
+
+void _ui_drawMenuChannelFreqInput(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, (ui_state->input_set == SET_RX) ? "Edit RX" : "Edit TX");
+
+    _ui_drawVFOMiddleInput(ui_state);
 }
 
 void _ui_drawMenuChannelDelete(ui_state_t* ui_state)
@@ -1350,7 +1398,11 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "         FM");
             break;
         case OPMODE_DMR:
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
+            gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          M17");
+#else
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          DMR");
+#endif
             break;
 #ifdef CONFIG_M17
         case OPMODE_M17:

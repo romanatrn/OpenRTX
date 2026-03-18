@@ -946,6 +946,11 @@ bool ui_pushEvent(const uint8_t type, const uint32_t data)
     return true;
 }
 
+bool ui_idleTick(void)
+{
+    return false;
+}
+
 void ui_terminate()
 {
 }

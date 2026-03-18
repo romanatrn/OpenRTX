@@ -167,7 +167,11 @@ static int _channelToMemory(mduv3x0Channel_t *dst, const channel_t *src)
 {
     memset(dst, 0, sizeof(*dst));
 
-    if((src->mode != OPMODE_FM) && (src->mode != OPMODE_DMR))
+    if((src->mode != OPMODE_FM)
+#if defined(CONFIG_M17)
+       && (src->mode != OPMODE_M17)
+#endif
+       && (src->mode != OPMODE_DMR))
         return -1;
 
     dst->channel_mode = src->mode;
@@ -198,9 +202,23 @@ static int _channelToMemory(mduv3x0Channel_t *dst, const channel_t *src)
     }
     else
     {
-        dst->contact_name_index = src->dmr.contact_index;
-        dst->repeater_slot = src->dmr.dmr_timeslot;
-        dst->colorcode = src->dmr.txColorCode;
+        dst->channel_mode = OPMODE_DMR;
+
+#if defined(CONFIG_M17)
+        if(src->mode == OPMODE_M17)
+        {
+            dst->contact_name_index = src->m17.contact_index;
+            dst->repeater_slot = (src->m17.mode == 0) ? DIGITAL_VOICE
+                                                      : (src->m17.mode & 0x03);
+            dst->colorcode = src->m17.txCan & 0x0F;
+        }
+        else
+#endif
+        {
+            dst->contact_name_index = src->dmr.contact_index;
+            dst->repeater_slot = src->dmr.dmr_timeslot;
+            dst->colorcode = src->dmr.txColorCode;
+        }
     }
 
     return 0;
@@ -287,10 +305,21 @@ static int _readChannelAtAddress(channel_t *channel, uint32_t addr)
     }
     else if(channel->mode == OPMODE_DMR)
     {
+#if defined(CONFIG_M17)
+        channel->mode = OPMODE_M17;
+        channel->m17.contact_index = chData.contact_name_index;
+        channel->m17.rxCan = chData.colorcode & 0x0F;
+        channel->m17.txCan = chData.colorcode & 0x0F;
+        channel->m17.mode = (chData.repeater_slot == 0) ? DIGITAL_VOICE
+                                                        : (chData.repeater_slot & 0x03);
+        channel->m17.encr = PLAIN;
+        channel->m17.gps_mode = NO_GPS;
+#else
         channel->dmr.contact_index = chData.contact_name_index;
         channel->dmr.dmr_timeslot      = chData.repeater_slot;
         channel->dmr.rxColorCode       = chData.colorcode;
         channel->dmr.txColorCode       = chData.colorcode;
+#endif
     }
 
     return 0;
@@ -403,6 +432,9 @@ int cps_readContact(contact_t *contact, uint16_t pos)
     }
 
     contact->mode = OPMODE_DMR;
+#if defined(CONFIG_M17)
+    contact->mode = OPMODE_M17;
+#endif
 
     // Copy contact DMR ID
     contact->info.dmr.id = contactData.id[0]

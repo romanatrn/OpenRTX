@@ -76,6 +76,8 @@ openrtx_inc = ['openrtx/include', 'platform']
 ##
 
 ui_src_default = ['openrtx/src/ui/default/ui.c',
+                  'openrtx/src/ui/default/games/ui_games.c',
+                  'openrtx/src/ui/default/games/ui_game_snake.c',
                   'openrtx/src/ui/default/ui_main.c',
                   'openrtx/src/ui/default/ui_menu.c',
                   'openrtx/src/ui/default/ui_strings.c']
@@ -1139,4 +1141,3 @@ test('Codeplug Test',         cps_test)
 ## test('Linux InputStream Test', linux_inputStream_test)
 test('minmea conversion Test', minmea_conversion_test)
 test('UI Check Standby Test', ui_check_standby_test)
-
