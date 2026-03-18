@@ -21,11 +21,8 @@ typedef enum ui_game_phase_t
 typedef struct ui_games_persist_t
 {
     uint16_t snake_best;
-    uint16_t sokoban_best;
     uint16_t tetris_best;
     uint16_t bomber_best;
-    uint16_t breakout_best;
-    uint16_t game2048_best;
     uint16_t mines_best;
 } ui_games_persist_t;
 
@@ -43,11 +40,8 @@ typedef struct ui_games_runtime_t
 static const ui_game_driver_t *games_catalog[] =
 {
     &ui_game_snake,
-    &ui_game_sokoban,
     &ui_game_tetris,
     &ui_game_bomber,
-    &ui_game_breakout,
-    &ui_game_2048,
     &ui_game_mines,
 };
 
@@ -61,11 +55,8 @@ static uint8_t ui_games_getCount(void)
 static void ui_games_loadPersistence(void)
 {
     ui_games_runtime.persist.snake_best = state.settings.snake_high_score;
-    ui_games_runtime.persist.sokoban_best = state.settings.sokoban_high_score;
     ui_games_runtime.persist.tetris_best = state.settings.tetris_high_score;
     ui_games_runtime.persist.bomber_best = state.settings.bomber_high_score;
-    ui_games_runtime.persist.breakout_best = state.settings.breakout_high_score;
-    ui_games_runtime.persist.game2048_best = state.settings.game2048_high_score;
     ui_games_runtime.persist.mines_best = state.settings.mines_high_score;
     ui_games_runtime.persist_dirty = false;
 }
@@ -75,11 +66,8 @@ uint16_t ui_games_readBestScore(ui_game_id_t game_id)
     switch(game_id)
     {
         case UI_GAME_SNAKE:   return ui_games_runtime.persist.snake_best;
-        case UI_GAME_SOKOBAN: return ui_games_runtime.persist.sokoban_best;
         case UI_GAME_TETRIS:  return ui_games_runtime.persist.tetris_best;
         case UI_GAME_BOMBER:  return ui_games_runtime.persist.bomber_best;
-        case UI_GAME_BREAKOUT:return ui_games_runtime.persist.breakout_best;
-        case UI_GAME_2048:    return ui_games_runtime.persist.game2048_best;
         case UI_GAME_MINES:   return ui_games_runtime.persist.mines_best;
         default:              return 0;
     }
@@ -93,14 +81,6 @@ void ui_games_writeBestScore(ui_game_id_t game_id, uint16_t value)
             if(value > ui_games_runtime.persist.snake_best)
             {
                 ui_games_runtime.persist.snake_best = value;
-                ui_games_runtime.persist_dirty = true;
-            }
-            break;
-
-        case UI_GAME_SOKOBAN:
-            if(value > ui_games_runtime.persist.sokoban_best)
-            {
-                ui_games_runtime.persist.sokoban_best = value;
                 ui_games_runtime.persist_dirty = true;
             }
             break;
@@ -121,22 +101,6 @@ void ui_games_writeBestScore(ui_game_id_t game_id, uint16_t value)
             }
             break;
 
-        case UI_GAME_BREAKOUT:
-            if(value > ui_games_runtime.persist.breakout_best)
-            {
-                ui_games_runtime.persist.breakout_best = value;
-                ui_games_runtime.persist_dirty = true;
-            }
-            break;
-
-        case UI_GAME_2048:
-            if(value > ui_games_runtime.persist.game2048_best)
-            {
-                ui_games_runtime.persist.game2048_best = value;
-                ui_games_runtime.persist_dirty = true;
-            }
-            break;
-
         case UI_GAME_MINES:
             if(value > ui_games_runtime.persist.mines_best)
             {
@@ -153,11 +117,8 @@ void ui_games_syncPersistence(void)
         return;
 
     state.settings.snake_high_score = ui_games_runtime.persist.snake_best;
-    state.settings.sokoban_high_score = ui_games_runtime.persist.sokoban_best;
     state.settings.tetris_high_score = ui_games_runtime.persist.tetris_best;
     state.settings.bomber_high_score = ui_games_runtime.persist.bomber_best;
-    state.settings.breakout_high_score = ui_games_runtime.persist.breakout_best;
-    state.settings.game2048_high_score = ui_games_runtime.persist.game2048_best;
     state.settings.mines_high_score = ui_games_runtime.persist.mines_best;
     ui_games_runtime.persist_dirty = false;
 }
@@ -244,13 +205,6 @@ static void ui_games_drawTitleArt(ui_game_id_t game_id)
             gfx_drawRect((point_t){center.x + 16, center.y - 8}, 5, 5, yellow_fab413, false);
             break;
 
-        case UI_GAME_SOKOBAN:
-            gfx_drawRect((point_t){center.x - 18, center.y - 10}, 12, 12, color_grey, true);
-            gfx_drawRect((point_t){center.x - 2, center.y - 10}, 12, 12, color_white, true);
-            gfx_drawRect((point_t){center.x + 14, center.y - 10}, 12, 12, color_grey, false);
-            gfx_drawRect((point_t){center.x - 6, center.y + 8}, 10, 10, yellow_fab413, true);
-            break;
-
         case UI_GAME_TETRIS:
             gfx_drawRect((point_t){center.x - 20, center.y - 12}, 17, 5, color_white, true);
             gfx_drawRect((point_t){center.x - 8, center.y - 6}, 11, 11, yellow_fab413, true);
@@ -265,21 +219,6 @@ static void ui_games_drawTitleArt(ui_game_id_t game_id)
             gfx_drawRect((point_t){center.x + 10, center.y - 4}, 5, 5, yellow_fab413, true);
             gfx_drawLine((point_t){center.x + 16, center.y - 8}, (point_t){center.x + 22, center.y - 16}, color_white);
             gfx_drawRect((point_t){center.x - 20, center.y + 10}, 40, 3, color_grey, true);
-            break;
-
-        case UI_GAME_BREAKOUT:
-            gfx_drawRect((point_t){center.x - 18, center.y - 12}, 8, 8, color_white, true);
-            gfx_drawRect((point_t){center.x - 6, center.y - 12}, 8, 8, yellow_fab413, true);
-            gfx_drawRect((point_t){center.x + 6, center.y - 12}, 8, 8, color_white, true);
-            gfx_drawRect((point_t){center.x - 4, center.y}, 5, 5, yellow_fab413, true);
-            gfx_drawRect((point_t){center.x - 18, center.y + 14}, 36, 4, color_white, true);
-            break;
-
-        case UI_GAME_2048:
-            gfx_drawRect((point_t){center.x - 18, center.y - 14}, 16, 16, color_grey, true);
-            gfx_drawRect((point_t){center.x + 2, center.y - 14}, 16, 16, color_white, true);
-            gfx_drawRect((point_t){center.x - 18, center.y + 6}, 16, 16, yellow_fab413, true);
-            gfx_drawRect((point_t){center.x + 2, center.y + 6}, 16, 16, color_grey, false);
             break;
 
         case UI_GAME_MINES:

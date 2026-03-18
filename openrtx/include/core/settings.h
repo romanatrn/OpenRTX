@@ -53,11 +53,8 @@ typedef struct
     char    M17_meta_text[53];    // M17 Meta Text to send
     int16_t ppm_offset;           // Frequency offset for tuning (in tenth of ppm)
     uint16_t snake_high_score;    // Best Snake score
-    uint16_t sokoban_high_score;  // Best Sokoban progress
     uint16_t tetris_high_score;   // Best Tetris score
     uint16_t bomber_high_score;   // Best Bomberman Lite score
-    uint16_t breakout_high_score; // Best Breakout score
-    uint16_t game2048_high_score; // Best 2048 tile
     uint16_t mines_high_score;    // Best Minesweeper clears
 }
 __attribute__((packed)) settings_t;
@@ -87,9 +84,6 @@ static const settings_t default_settings =
     false,
     false,
     "OpenRTX",
-    0,
-    0,
-    0,
     0,
     0,
     0,
