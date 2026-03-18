@@ -22,6 +22,18 @@ TEST_CASE("Parse AES key from hex", "[m17][crypto]")
     REQUIRE(key[15] == 0xFF);
 }
 
+TEST_CASE("Parse ASCII key fallback", "[m17][crypto]")
+{
+    std::array<uint8_t, 16> key;
+    size_t keyLen = 0;
+
+    REQUIRE(M17Crypto::parseHexKey("swordfish", key, keyLen));
+    REQUIRE(keyLen == 16);
+    REQUIRE(key[0] == 's');
+    REQUIRE(key[8] == 'h');
+    REQUIRE(key[9] == 0x00);
+}
+
 TEST_CASE("Scrambler payload roundtrip", "[m17][crypto]")
 {
     M17LinkSetupFrame lsf;
