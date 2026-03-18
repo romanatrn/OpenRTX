@@ -28,6 +28,184 @@ static inline void W25Qx_readData(uint32_t addr, void *buf, size_t len)
     nvm_devRead(&eflash, addr, buf, len);
 }
 
+static inline int W25Qx_writeData(uint32_t addr, const void *buf, size_t len)
+{
+    return nvm_devWrite(&eflash, addr, buf, len);
+}
+
+static inline int W25Qx_eraseSector(uint32_t addr)
+{
+    return nvm_devErase(&eflash, addr, 0x1000);
+}
+
+static uint32_t _binToBcd(uint32_t value)
+{
+    uint32_t bcd = 0;
+    uint8_t shift = 0;
+
+    while(value > 0)
+    {
+        bcd |= (value % 10) << shift;
+        value /= 10;
+        shift += 4;
+    }
+
+    return bcd;
+}
+
+static int _writeChannelAtAddress(const uint32_t addr, const void *buf, const size_t len)
+{
+    static uint8_t sector[0x1000];
+    const uint32_t sectorAddr = addr & ~0x0FFFu;
+    const uint32_t offset = addr - sectorAddr;
+
+    if((offset + len) > sizeof(sector))
+        return -1;
+
+    if(nvm_devRead(&eflash, sectorAddr, sector, sizeof(sector)) < 0)
+        return -1;
+
+    memcpy(&sector[offset], buf, len);
+
+    if(W25Qx_eraseSector(sectorAddr) < 0)
+        return -1;
+
+    if(W25Qx_writeData(sectorAddr, sector, sizeof(sector)) < 0)
+        return -1;
+
+    return 0;
+}
+
+static int _writeZoneAtAddress(const uint32_t addr, const void *buf, const size_t len)
+{
+    return _writeChannelAtAddress(addr, buf, len);
+}
+
+static int _readZoneMembers(uint16_t bank_pos, uint16_t members[64])
+{
+    mduv3x0Zone_t zoneData;
+    mduv3x0ZoneExt_t zoneExtData;
+    uint32_t zoneAddr = zoneBaseAddr + bank_pos * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + bank_pos * sizeof(mduv3x0ZoneExt_t);
+
+    if(bank_pos >= maxNumZones)
+        return -1;
+
+    W25Qx_readData(zoneAddr, ((uint8_t *) &zoneData), sizeof(zoneData));
+    W25Qx_readData(zoneExtAddr, ((uint8_t *) &zoneExtData), sizeof(zoneExtData));
+
+    #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+    if(wcslen((wchar_t *) zoneData.name) == 0)
+        return -1;
+
+    memcpy(&members[0], &zoneData.member_a[0], sizeof(zoneData.member_a));
+    memcpy(&members[16], &zoneExtData.ext_a[0], sizeof(zoneExtData.ext_a));
+
+    return 0;
+}
+
+static int _writeZoneMembers(uint16_t bank_pos, const uint16_t members[64])
+{
+    mduv3x0Zone_t zoneData;
+    mduv3x0ZoneExt_t zoneExtData;
+    uint32_t zoneAddr = zoneBaseAddr + bank_pos * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + bank_pos * sizeof(mduv3x0ZoneExt_t);
+
+    if(bank_pos >= maxNumZones)
+        return -1;
+
+    W25Qx_readData(zoneAddr, ((uint8_t *) &zoneData), sizeof(zoneData));
+    W25Qx_readData(zoneExtAddr, ((uint8_t *) &zoneExtData), sizeof(zoneExtData));
+
+    memcpy(&zoneData.member_a[0], &members[0], sizeof(zoneData.member_a));
+    memcpy(&zoneExtData.ext_a[0], &members[16], sizeof(zoneExtData.ext_a));
+
+    if(_writeZoneAtAddress(zoneAddr, &zoneData, sizeof(zoneData)) < 0)
+        return -1;
+
+    if(_writeZoneAtAddress(zoneExtAddr, &zoneExtData, sizeof(zoneExtData)) < 0)
+        return -1;
+
+    return 0;
+}
+
+static int _compactBankReferences(uint16_t deletedChannel, uint16_t movedChannel)
+{
+    for(uint16_t bank = 0; bank < maxNumZones; bank++)
+    {
+        uint16_t members[64];
+        uint16_t compacted[64] = {0};
+        uint16_t out = 0;
+
+        if(_readZoneMembers(bank, members) < 0)
+            continue;
+
+        for(uint16_t i = 0; i < 64; i++)
+        {
+            uint16_t member = members[i];
+
+            if(member == 0)
+                continue;
+
+            if(member == (deletedChannel + 1))
+                continue;
+
+            if(member == (movedChannel + 1))
+                member = deletedChannel + 1;
+
+            compacted[out++] = member;
+        }
+
+        if(_writeZoneMembers(bank, compacted) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
+static int _channelToMemory(mduv3x0Channel_t *dst, const channel_t *src)
+{
+    memset(dst, 0, sizeof(*dst));
+
+    if((src->mode != OPMODE_FM) && (src->mode != OPMODE_DMR))
+        return -1;
+
+    dst->channel_mode = src->mode;
+    dst->bandwidth = (src->bandwidth == BW_12_5) ? 0 : 1;
+    dst->rx_only = src->rx_only;
+    dst->scan_list_index = src->scanList_index;
+    dst->group_list_index = src->groupList_index;
+    dst->rx_frequency = _binToBcd(src->rx_frequency / 10);
+    dst->tx_frequency = _binToBcd(src->tx_frequency / 10);
+
+    if(src->power <= 1000)
+        dst->power = 0;
+    else if(src->power <= 2500)
+        dst->power = 2;
+    else
+        dst->power = 3;
+
+    for(uint16_t i = 0; i < 16; i++)
+        dst->name[i] = (uint8_t) src->name[i];
+
+    if(src->mode == OPMODE_FM)
+    {
+        if(src->fm.rxToneEn)
+            dst->ctcss_dcs_receive = (uint16_t) _binToBcd(ctcss_tone[src->fm.rxTone]);
+
+        if(src->fm.txToneEn)
+            dst->ctcss_dcs_transmit = (uint16_t) _binToBcd(ctcss_tone[src->fm.txTone]);
+    }
+    else
+    {
+        dst->contact_name_index = src->dmr.contact_index;
+        dst->repeater_slot = src->dmr.dmr_timeslot;
+        dst->colorcode = src->dmr.txColorCode;
+    }
+
+    return 0;
+}
+
 /**
  * Used to read channel data from SPI flash into a channel_t struct
  */
@@ -234,6 +412,78 @@ int cps_readContact(contact_t *contact, uint16_t pos)
     // Copy contact details
     contact->info.dmr.contactType = contactData.type;
     contact->info.dmr.rx_tone     = contactData.receive_tone ? true : false;
+
+    return 0;
+}
+
+int cps_writeChannel(channel_t channel, uint16_t pos)
+{
+    mduv3x0Channel_t chData;
+
+    if(pos >= maxNumChannels)
+        return -1;
+
+    if(_channelToMemory(&chData, &channel) < 0)
+        return -1;
+
+    return _writeChannelAtAddress(chDataBaseAddr + pos * sizeof(mduv3x0Channel_t),
+                                  &chData, sizeof(chData));
+}
+
+int cps_insertChannel(channel_t channel, uint16_t pos)
+{
+    channel_t existing;
+
+    if(pos >= maxNumChannels)
+        return -1;
+
+    if(cps_readChannel(&existing, pos) == 0)
+        return -1;
+
+    return cps_writeChannel(channel, pos);
+}
+
+int cps_deleteChannel(channel_t channel, uint16_t pos)
+{
+    mduv3x0Channel_t lastData;
+    mduv3x0Channel_t emptyData = {0};
+    channel_t existing;
+    uint16_t last = pos;
+
+    (void) channel;
+
+    if(pos >= maxNumChannels)
+        return -1;
+
+    if(cps_readChannel(&existing, pos) < 0)
+        return -1;
+
+    while(((uint32_t) (last + 1)) < maxNumChannels)
+    {
+        channel_t next;
+
+        if(cps_readChannel(&next, last + 1) < 0)
+            break;
+
+        last++;
+    }
+
+    if(pos != last)
+    {
+        W25Qx_readData(chDataBaseAddr + last * sizeof(mduv3x0Channel_t),
+                       &lastData, sizeof(lastData));
+
+        if(_writeChannelAtAddress(chDataBaseAddr + pos * sizeof(mduv3x0Channel_t),
+                                  &lastData, sizeof(lastData)) < 0)
+            return -1;
+    }
+
+    if(_writeChannelAtAddress(chDataBaseAddr + last * sizeof(mduv3x0Channel_t),
+                              &emptyData, sizeof(emptyData)) < 0)
+        return -1;
+
+    if(_compactBankReferences(pos, last) < 0)
+        return -1;
 
     return 0;
 }
