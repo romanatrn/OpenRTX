@@ -225,23 +225,39 @@ bool M17Crypto::parseHexKey(const char *hex, std::array<uint8_t, 16>& key,
         return false;
 
     const size_t len = strnlen(hex, 32);
-    if((len == 0) || (len & 1) || (len > 32))
+    if((len == 0) || (len > 32))
         return false;
 
-    keyLen = len / 2;
-    for(size_t i = 0; i < keyLen; ++i)
+    if(((len & 1) == 0) && (len <= 32))
     {
-        uint8_t hi = hexToNibble(hex[i * 2]);
-        uint8_t lo = hexToNibble(hex[i * 2 + 1]);
-        if((hi == 0xFF) || (lo == 0xFF))
+        bool isHex = true;
+        keyLen = len / 2;
+        for(size_t i = 0; i < keyLen; ++i)
         {
-            key.fill(0);
-            keyLen = 0;
-            return false;
+            uint8_t hi = hexToNibble(hex[i * 2]);
+            uint8_t lo = hexToNibble(hex[i * 2 + 1]);
+            if((hi == 0xFF) || (lo == 0xFF))
+            {
+                isHex = false;
+                break;
+            }
+
+            key[i] = static_cast<uint8_t>((hi << 4) | lo);
         }
 
-        key[i] = static_cast<uint8_t>((hi << 4) | lo);
+        if(isHex)
+            return true;
+
+        key.fill(0);
+        keyLen = 0;
     }
+
+    keyLen = (len > 16) ? 16 : len;
+    for(size_t i = 0; i < keyLen; ++i)
+        key[i] = static_cast<uint8_t>(hex[i]);
+
+    if(len < 16)
+        keyLen = 16;
 
     return true;
 }
