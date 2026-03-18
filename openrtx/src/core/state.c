@@ -21,7 +21,7 @@ pthread_mutex_t state_mutex;
 static long long int lastUpdate = 0;
 static settings_t lastPersistedSettings;
 static long long settingsDirtySince = 0;
-static const long long settingsSaveDelay = 15000;
+static const long long settingsSaveDelay = 3000;
 
 // Commonly used frequency steps, expressed in Hz
 const uint32_t freq_steps[] = { 1000, 5000, 6250, 10000, 12500, 15000,

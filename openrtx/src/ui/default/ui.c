@@ -297,6 +297,7 @@ static ui_state_t ui_state;
 static bool macro_menu = false;
 static bool layout_ready = false;
 static bool redraw_needed = true;
+static settings_t last_saved_settings;
 
 static bool standby = false;
 static long long last_event_tick = 0;
@@ -1389,6 +1390,15 @@ static bool _ui_isSettingsScreen(const uint8_t screen)
     }
 }
 
+static void _ui_persistSettingsIfNeeded()
+{
+    if(memcmp(&state.settings, &last_saved_settings, sizeof(settings_t)) != 0)
+    {
+        if(state_saveSettings() == 0)
+            last_saved_settings = state.settings;
+    }
+}
+
 void ui_init()
 {
     last_event_tick = getTick();
@@ -1400,6 +1410,7 @@ void ui_init()
     // https://stackoverflow.com/questions/6891720/initialize-reset-struct-to-zero-null
     ui_state = (const struct ui_state_t){ 0 };
     ui_state.memory_edit_index = -1;
+    last_saved_settings = state.settings;
 }
 
 void ui_drawSplashScreen()
@@ -2980,6 +2991,8 @@ void ui_updateFSM(bool *sync_rtx)
             _ui_enterStandby();
         }
     }
+
+    _ui_persistSettingsIfNeeded();
 
 }
 
