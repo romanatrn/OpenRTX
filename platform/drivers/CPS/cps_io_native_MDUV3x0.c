@@ -38,6 +38,26 @@ static inline int W25Qx_eraseSector(uint32_t addr)
     return nvm_devErase(&eflash, addr, 0x1000);
 }
 
+static int _clearRange(uint32_t baseAddr, size_t len)
+{
+    static const uint8_t emptySector[0x1000] = {0};
+    const uint32_t sectorSize = sizeof(emptySector);
+    const uint32_t startAddr = baseAddr & ~(sectorSize - 1u);
+    const uint32_t endAddr = (baseAddr + (uint32_t) len + sectorSize - 1u)
+                           & ~(sectorSize - 1u);
+
+    for(uint32_t addr = startAddr; addr < endAddr; addr += sectorSize)
+    {
+        if(W25Qx_eraseSector(addr) < 0)
+            return -1;
+
+        if(W25Qx_writeData(addr, emptySector, sectorSize) < 0)
+            return -1;
+    }
+
+    return 0;
+}
+
 static uint32_t _binToBcd(uint32_t value)
 {
     uint32_t bcd = 0;
@@ -85,8 +105,8 @@ static int _readZoneMembers(uint16_t bank_pos, uint16_t members[64])
 {
     mduv3x0Zone_t zoneData;
     mduv3x0ZoneExt_t zoneExtData;
-    uint32_t zoneAddr = zoneBaseAddr + bank_pos * sizeof(mduv3x0Zone_t);
-    uint32_t zoneExtAddr = zoneExtBaseAddr + bank_pos * sizeof(mduv3x0ZoneExt_t);
+    uint32_t zoneAddr = zoneBaseAddr + (bank_pos + 1) * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (bank_pos + 1) * sizeof(mduv3x0ZoneExt_t);
 
     if(bank_pos >= maxNumZones)
         return -1;
@@ -108,8 +128,8 @@ static int _writeZoneMembers(uint16_t bank_pos, const uint16_t members[64])
 {
     mduv3x0Zone_t zoneData;
     mduv3x0ZoneExt_t zoneExtData;
-    uint32_t zoneAddr = zoneBaseAddr + bank_pos * sizeof(mduv3x0Zone_t);
-    uint32_t zoneExtAddr = zoneExtBaseAddr + bank_pos * sizeof(mduv3x0ZoneExt_t);
+    uint32_t zoneAddr = zoneBaseAddr + (bank_pos + 1) * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (bank_pos + 1) * sizeof(mduv3x0ZoneExt_t);
 
     if(bank_pos >= maxNumZones)
         return -1;
@@ -127,6 +147,24 @@ static int _writeZoneMembers(uint16_t bank_pos, const uint16_t members[64])
         return -1;
 
     return 0;
+}
+
+static uint16_t _countZoneMembers(const uint16_t members[64])
+{
+    uint16_t count = 0;
+
+    while((count < 64) && (members[count] != 0))
+        count++;
+
+    return count;
+}
+
+static void _clearAndCopyWideName(uint16_t *dst, size_t len, const char *src)
+{
+    memset(dst, 0, len * sizeof(uint16_t));
+
+    for(size_t i = 0; (i < len) && (src[i] != '\0'); i++)
+        dst[i] = (uint8_t) src[i];
 }
 
 static int _compactBankReferences(uint16_t deletedChannel, uint16_t movedChannel)
@@ -348,6 +386,19 @@ void cps_close()
 int cps_create(char *cps_name)
 {
     (void) cps_name;
+
+    if(_clearRange(zoneBaseAddr, (maxNumZones + 1) * sizeof(mduv3x0Zone_t)) < 0)
+        return -1;
+
+    if(_clearRange(zoneExtBaseAddr, (maxNumZones + 1) * sizeof(mduv3x0ZoneExt_t)) < 0)
+        return -1;
+
+    if(_clearRange(chDataBaseAddr, (maxNumChannels + 1) * sizeof(mduv3x0Channel_t)) < 0)
+        return -1;
+
+    if(_clearRange(contactBaseAddr, (maxNumContacts + 1) * sizeof(mduv3x0Contact_t)) < 0)
+        return -1;
+
     return 0;
 }
 
@@ -368,9 +419,9 @@ int cps_readBankHeader(bankHdr_t *b_header, uint16_t pos)
 
     mduv3x0Zone_t zoneData;
     mduv3x0ZoneExt_t zoneExtData;
-    // Note: pos is 1-based to be consistent with channels
-    uint32_t zoneAddr = zoneBaseAddr + pos * sizeof(mduv3x0Zone_t);
-    uint32_t zoneExtAddr = zoneExtBaseAddr + pos * sizeof(mduv3x0ZoneExt_t);
+    uint16_t members[64] = {0};
+    uint32_t zoneAddr = zoneBaseAddr + (pos + 1) * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (pos + 1) * sizeof(mduv3x0ZoneExt_t);
     W25Qx_readData(zoneAddr, ((uint8_t *) &zoneData), sizeof(mduv3x0Zone_t));
     W25Qx_readData(zoneExtAddr, ((uint8_t *) &zoneExtData), sizeof(mduv3x0ZoneExt_t));
 
@@ -385,7 +436,11 @@ int cps_readBankHeader(bankHdr_t *b_header, uint16_t pos)
     {
         b_header->name[i] = ((char) (zoneData.name[i] & 0x00FF));
     }
-    b_header->ch_count = 64;
+
+    memcpy(&members[0], &zoneData.member_a[0], sizeof(zoneData.member_a));
+    memcpy(&members[16], &zoneExtData.ext_a[0], sizeof(zoneExtData.ext_a));
+    b_header->ch_count = _countZoneMembers(members);
+
     return 0;
 }
 
@@ -395,8 +450,8 @@ int cps_readBankData(uint16_t bank_pos, uint16_t ch_pos)
 
     mduv3x0Zone_t zoneData;
     mduv3x0ZoneExt_t zoneExtData;
-    uint32_t zoneAddr = zoneBaseAddr + bank_pos * sizeof(mduv3x0Zone_t);
-    uint32_t zoneExtAddr = zoneExtBaseAddr + bank_pos * sizeof(mduv3x0ZoneExt_t);
+    uint32_t zoneAddr = zoneBaseAddr + (bank_pos + 1) * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (bank_pos + 1) * sizeof(mduv3x0ZoneExt_t);
     W25Qx_readData(zoneAddr, ((uint8_t *) &zoneData), sizeof(mduv3x0Zone_t));
     W25Qx_readData(zoneExtAddr, ((uint8_t *) &zoneExtData), sizeof(mduv3x0ZoneExt_t));
 
@@ -458,7 +513,7 @@ int cps_writeChannel(channel_t channel, uint16_t pos)
     if(_channelToMemory(&chData, &channel) < 0)
         return -1;
 
-    return _writeChannelAtAddress(chDataBaseAddr + pos * sizeof(mduv3x0Channel_t),
+    return _writeChannelAtAddress(chDataBaseAddr + (pos + 1) * sizeof(mduv3x0Channel_t),
                                   &chData, sizeof(chData));
 }
 
@@ -469,7 +524,7 @@ int cps_insertChannel(channel_t channel, uint16_t pos)
     if(pos >= maxNumChannels)
         return -1;
 
-    if(cps_readChannel(&existing, pos) == 0)
+    if(cps_readChannel(&existing, pos + 1) == 0)
         return -1;
 
     return cps_writeChannel(channel, pos);
@@ -487,14 +542,14 @@ int cps_deleteChannel(channel_t channel, uint16_t pos)
     if(pos >= maxNumChannels)
         return -1;
 
-    if(cps_readChannel(&existing, pos) < 0)
+    if(cps_readChannel(&existing, pos + 1) < 0)
         return -1;
 
     while(((uint32_t) (last + 1)) < maxNumChannels)
     {
         channel_t next;
 
-        if(cps_readChannel(&next, last + 1) < 0)
+        if(cps_readChannel(&next, last + 2) < 0)
             break;
 
         last++;
@@ -502,15 +557,15 @@ int cps_deleteChannel(channel_t channel, uint16_t pos)
 
     if(pos != last)
     {
-        W25Qx_readData(chDataBaseAddr + last * sizeof(mduv3x0Channel_t),
+        W25Qx_readData(chDataBaseAddr + (last + 1) * sizeof(mduv3x0Channel_t),
                        &lastData, sizeof(lastData));
 
-        if(_writeChannelAtAddress(chDataBaseAddr + pos * sizeof(mduv3x0Channel_t),
+        if(_writeChannelAtAddress(chDataBaseAddr + (pos + 1) * sizeof(mduv3x0Channel_t),
                                   &lastData, sizeof(lastData)) < 0)
             return -1;
     }
 
-    if(_writeChannelAtAddress(chDataBaseAddr + last * sizeof(mduv3x0Channel_t),
+    if(_writeChannelAtAddress(chDataBaseAddr + (last + 1) * sizeof(mduv3x0Channel_t),
                               &emptyData, sizeof(emptyData)) < 0)
         return -1;
 
@@ -518,4 +573,139 @@ int cps_deleteChannel(channel_t channel, uint16_t pos)
         return -1;
 
     return 0;
+}
+
+int cps_writeContact(contact_t contact, uint16_t pos)
+{
+    mduv3x0Contact_t contactData = {0};
+
+    if(pos >= maxNumContacts)
+        return -1;
+
+    W25Qx_readData(contactBaseAddr + pos * sizeof(mduv3x0Contact_t),
+                   &contactData, sizeof(contactData));
+
+    _clearAndCopyWideName(contactData.name, 16, contact.name);
+
+    return _writeChannelAtAddress(contactBaseAddr + pos * sizeof(mduv3x0Contact_t),
+                                  &contactData, sizeof(contactData));
+}
+
+int cps_insertContact(contact_t contact, uint16_t pos)
+{
+    contact_t existing;
+
+    if(pos >= maxNumContacts)
+        return -1;
+
+    if(cps_readContact(&existing, pos) == 0)
+        return -1;
+
+    return cps_writeContact(contact, pos);
+}
+
+int cps_deleteContact(uint16_t pos)
+{
+    mduv3x0Contact_t emptyData = {0};
+
+    if(pos >= maxNumContacts)
+        return -1;
+
+    return _writeChannelAtAddress(contactBaseAddr + pos * sizeof(mduv3x0Contact_t),
+                                  &emptyData, sizeof(emptyData));
+}
+
+int cps_writeBankHeader(bankHdr_t b_header, uint16_t pos)
+{
+    mduv3x0Zone_t zoneData = {0};
+    mduv3x0ZoneExt_t zoneExtData = {0};
+    uint32_t zoneAddr = zoneBaseAddr + (pos + 1) * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (pos + 1) * sizeof(mduv3x0ZoneExt_t);
+
+    if(pos >= maxNumZones)
+        return -1;
+
+    W25Qx_readData(zoneAddr, &zoneData, sizeof(zoneData));
+    W25Qx_readData(zoneExtAddr, &zoneExtData, sizeof(zoneExtData));
+
+    _clearAndCopyWideName(zoneData.name, 16, b_header.name);
+
+    if(_writeZoneAtAddress(zoneAddr, &zoneData, sizeof(zoneData)) < 0)
+        return -1;
+
+    return _writeZoneAtAddress(zoneExtAddr, &zoneExtData, sizeof(zoneExtData));
+}
+
+int cps_insertBankHeader(bankHdr_t b_header, uint16_t pos)
+{
+    bankHdr_t existing;
+    mduv3x0ZoneExt_t zoneExtData = {0};
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (pos + 1) * sizeof(mduv3x0ZoneExt_t);
+
+    if(pos >= maxNumZones)
+        return -1;
+
+    if(cps_readBankHeader(&existing, pos) == 0)
+        return -1;
+
+    if(cps_writeBankHeader(b_header, pos) < 0)
+        return -1;
+
+    return _writeZoneAtAddress(zoneExtAddr, &zoneExtData, sizeof(zoneExtData));
+}
+
+int cps_deleteBankHeader(uint16_t pos)
+{
+    mduv3x0Zone_t zoneData = {0};
+    mduv3x0ZoneExt_t zoneExtData = {0};
+    uint32_t zoneAddr = zoneBaseAddr + (pos + 1) * sizeof(mduv3x0Zone_t);
+    uint32_t zoneExtAddr = zoneExtBaseAddr + (pos + 1) * sizeof(mduv3x0ZoneExt_t);
+
+    if(pos >= maxNumZones)
+        return -1;
+
+    if(_writeZoneAtAddress(zoneAddr, &zoneData, sizeof(zoneData)) < 0)
+        return -1;
+
+    return _writeZoneAtAddress(zoneExtAddr, &zoneExtData, sizeof(zoneExtData));
+}
+
+int cps_insertBankData(uint32_t ch, uint16_t bank_pos, uint16_t pos)
+{
+    uint16_t members[64] = {0};
+
+    if((bank_pos >= maxNumZones) || (pos >= 64) || (ch >= maxNumChannels))
+        return -1;
+
+    if(_readZoneMembers(bank_pos, members) < 0)
+        return -1;
+
+    for(uint16_t i = 0; i < 64; i++)
+    {
+        if(members[i] == (ch + 1))
+            return 0;
+    }
+
+    for(uint16_t i = 63; i > pos; i--)
+        members[i] = members[i - 1];
+
+    members[pos] = ch + 1;
+    return _writeZoneMembers(bank_pos, members);
+}
+
+int cps_deleteBankData(uint16_t bank_pos, uint16_t pos)
+{
+    uint16_t members[64] = {0};
+
+    if((bank_pos >= maxNumZones) || (pos >= 64))
+        return -1;
+
+    if(_readZoneMembers(bank_pos, members) < 0)
+        return -1;
+
+    for(uint16_t i = pos; i < 63; i++)
+        members[i] = members[i + 1];
+
+    members[63] = 0;
+    return _writeZoneMembers(bank_pos, members);
 }

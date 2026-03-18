@@ -34,6 +34,8 @@ enum uiScreen
     MODE_MEM,
     MENU_TOP,
     MENU_BANK,
+    MENU_BANK_ACTION,
+    MENU_BANK_RENAME,
     MENU_CHANNEL,
     MENU_CHANNEL_ACTION,
     MENU_CHANNEL_EDIT,
@@ -41,6 +43,8 @@ enum uiScreen
     MENU_CHANNEL_RENAME,
     MENU_CHANNEL_DELETE,
     MENU_CONTACTS,
+    MENU_CONTACT_EDIT,
+    MENU_CONTACT_RENAME,
     MENU_GAMES,
     MENU_GPS,
     MENU_SETTINGS,
@@ -59,6 +63,7 @@ enum uiScreen
     SETTINGS_FM,
     SETTINGS_ACCESSIBILITY,
     SETTINGS_RESET2DEFAULTS,
+    SETTINGS_FACTORY_RESET,
     LOW_BAT
 };
 
@@ -100,6 +105,7 @@ enum settingsItems
     S_FM,
     S_ACCESSIBILITY,
     S_RESET2DEFAULTS,
+    S_FACTORY_RESET,
 };
 
 enum backupRestoreItems
@@ -125,7 +131,16 @@ enum channelEditItems
 enum channelActionItems
 {
     CA_OPEN = 0,
-    CA_EDIT
+    CA_EDIT,
+    CA_DELETE
+};
+
+enum contactEditItems
+{
+    CT_RENAME = 0,
+    CT_SAVE,
+    CT_DELETE,
+    CT_CANCEL
 };
 
 enum displayItems
@@ -276,6 +291,8 @@ typedef struct ui_state_t
     int8_t new_ppm_sign;
     int16_t memory_edit_index;
     int16_t channel_edit_zone;
+    int16_t bank_edit_index;
+    int16_t contact_edit_index;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)
@@ -285,6 +302,7 @@ typedef struct ui_state_t
 ui_state_t;
 
 extern layout_t layout;
+extern ui_state_t ui_state;
 extern state_t last_state;
 extern bool    macro_latched;
 extern const char *menu_items[];
@@ -299,6 +317,7 @@ extern const char *ui_theme_names[];
 extern const char *backup_restore_items[];
 extern const char *channel_edit_items[];
 extern const char *channel_action_items[];
+extern const char *contact_edit_items[];
 extern const char *info_items[];
 extern const char *authors[];
 extern const uint8_t menu_num;
@@ -312,6 +331,7 @@ extern const uint8_t settings_accessibility_num;
 extern const uint8_t backup_restore_num;
 extern const uint8_t channel_edit_num;
 extern const uint8_t channel_action_num;
+extern const uint8_t contact_edit_num;
 extern const uint8_t info_num;
 extern const uint8_t author_num;
 extern color_t color_black;

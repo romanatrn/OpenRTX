@@ -80,6 +80,8 @@ extern void _ui_drawMainMEM(ui_state_t* ui_state);
 /* UI menu functions, their implementation is in "ui_menu.c" */
 extern void _ui_drawMenuTop(ui_state_t* ui_state);
 extern void _ui_drawMenuBank(ui_state_t* ui_state);
+extern void _ui_drawMenuBankAction(ui_state_t* ui_state);
+extern void _ui_drawMenuBankRename(ui_state_t* ui_state);
 extern void _ui_drawMenuChannel(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelEdit(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelAction(ui_state_t* ui_state);
@@ -87,11 +89,15 @@ extern void _ui_drawMenuChannelFreqInput(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelRename(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelDelete(ui_state_t* ui_state);
 extern void _ui_drawMenuContacts(ui_state_t* ui_state);
+extern void _ui_drawMenuContactEdit(ui_state_t* ui_state);
+extern void _ui_drawMenuContactRename(ui_state_t* ui_state);
 extern void ui_games_drawLibrary(ui_state_t* ui_state);
 #ifdef CONFIG_GPS
 extern void _ui_drawMenuGPS();
 extern void _ui_drawSettingsGPS(ui_state_t* ui_state);
 #endif
+
+static void _ui_textInputPreset(char *buf, uint8_t max_len, const char *initial);
 extern void _ui_drawSettingsAccessibility(ui_state_t* ui_state);
 extern void _ui_drawMenuSettings(ui_state_t* ui_state);
 extern void _ui_drawMenuBackupRestore(ui_state_t* ui_state);
@@ -108,6 +114,7 @@ extern void _ui_drawSettingsM17(ui_state_t* ui_state);
 extern void _ui_drawSettingsFM(ui_state_t* ui_state);
 extern void _ui_drawSettingsVoicePrompts(ui_state_t* ui_state);
 extern void _ui_drawSettingsReset2Defaults(ui_state_t* ui_state);
+extern void _ui_drawSettingsFactoryReset(ui_state_t* ui_state);
 extern void _ui_drawSettingsRadio(ui_state_t* ui_state);
 extern bool _ui_drawMacroMenu(ui_state_t* ui_state);
 extern void _ui_reset_menu_anouncement_tracking();
@@ -141,7 +148,8 @@ const char *settings_items[] =
 #endif
     "FM",
     "Accessibility",
-    "Default Settings"
+    "Default Settings",
+    "Factory Reset"
 };
 
 const char *display_items[] =
@@ -220,7 +228,16 @@ const char *channel_edit_items[] =
 const char *channel_action_items[] =
 {
     "Open",
-    "Edit"
+    "Edit",
+    "Delete"
+};
+
+const char *contact_edit_items[] =
+{
+    "Rename",
+    "Save",
+    "Delete",
+    "Cancel"
 };
 
 const char *info_items[] =
@@ -299,6 +316,7 @@ const uint8_t settings_accessibility_num = sizeof(settings_accessibility_items)/
 const uint8_t backup_restore_num = sizeof(backup_restore_items)/sizeof(backup_restore_items[0]);
 const uint8_t channel_edit_num = sizeof(channel_edit_items)/sizeof(channel_edit_items[0]);
 const uint8_t channel_action_num = sizeof(channel_action_items)/sizeof(channel_action_items[0]);
+const uint8_t contact_edit_num = sizeof(contact_edit_items)/sizeof(contact_edit_items[0]);
 const uint8_t info_num = sizeof(info_items)/sizeof(info_items[0]);
 const uint8_t author_num = sizeof(authors)/sizeof(authors[0]);
 
@@ -342,7 +360,7 @@ color_t yellow_fab413 = {250, 180, 19, 255};
 layout_t layout;
 state_t last_state;
 bool macro_latched;
-static ui_state_t ui_state;
+ui_state_t ui_state;
 static bool macro_menu = false;
 static bool layout_ready = false;
 static bool redraw_needed = true;
@@ -698,6 +716,37 @@ static void _ui_cycleChannelMode(int8_t direction)
 #endif
 }
 
+static void _ui_cycleChannelBandwidth(int8_t direction);
+static void _ui_cycleChannelZone(int8_t direction);
+static void _ui_prepareChannelEdit();
+static void _ui_prepareBankRename(int16_t bank_index);
+static void _ui_prepareContactEdit(int16_t contact_index);
+static void _ui_announceStoreError();
+
+static void _ui_resetCodeplug(bool *sync_rtx)
+{
+    channel_t preserved_vfo = state.vfo_channel;
+
+    if(ui_state.last_main_state == MAIN_VFO)
+        preserved_vfo = state.channel;
+
+    if(!_ui_channel_valid(&preserved_vfo))
+        preserved_vfo = cps_getDefaultChannel();
+
+    if(cps_create(NULL) < 0)
+    {
+        _ui_announceStoreError();
+        return;
+    }
+
+    state.bank_enabled = false;
+    state.bank = 0;
+    state.channel_index = 0;
+    state.vfo_channel = preserved_vfo;
+    state.channel = preserved_vfo;
+    *sync_rtx = true;
+}
+
 static void _ui_cycleChannelPower(int8_t direction)
 {
 #if defined(PLATFORM_MDUV3x0)
@@ -748,7 +797,7 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
         channel_index = cps_readBankData(state.bank, channel_index);
     }
 
-    int result = cps_readChannel(&channel, channel_index);
+    int result = cps_readChannel(&channel, channel_index + 1);
     // Read successful and channel is valid
     if((result != -1) && _ui_channel_valid(&channel))
     {
@@ -767,7 +816,7 @@ static uint16_t _ui_getChannelCount()
     channel_t channel;
     uint16_t index = 0;
 
-    while((index < UINT16_MAX) && (cps_readChannel(&channel, index) != -1))
+    while((index < UINT16_MAX) && (cps_readChannel(&channel, index + 1) != -1))
         index++;
 
     return index;
@@ -779,6 +828,17 @@ static uint16_t _ui_getBankCount()
     uint16_t index = 0;
 
     while((index < UINT16_MAX) && (cps_readBankHeader(&bank, index) != -1))
+        index++;
+
+    return index;
+}
+
+static uint16_t _ui_getContactCount()
+{
+    contact_t contact;
+    uint16_t index = 0;
+
+    while((index < UINT16_MAX) && (cps_readContact(&contact, index + 1) != -1))
         index++;
 
     return index;
@@ -813,6 +873,31 @@ static void _ui_prepareChannelEdit()
         ui_state.channel_edit_zone = state.bank;
     else
         ui_state.channel_edit_zone = -1;
+
+    ui_state.menu_selected = 0;
+    ui_state.edit_mode = false;
+}
+
+static void _ui_prepareBankRename(int16_t bank_index)
+{
+    bankHdr_t bank = {0};
+
+    ui_state.bank_edit_index = bank_index;
+    if(bank_index >= 0 && cps_readBankHeader(&bank, (uint16_t) bank_index) != -1)
+        _ui_textInputPreset(ui_state.new_channel_name, 15, bank.name);
+    else
+        _ui_textInputPreset(ui_state.new_channel_name, 15, "");
+}
+
+static void _ui_prepareContactEdit(int16_t contact_index)
+{
+    contact_t contact = {0};
+
+    ui_state.contact_edit_index = contact_index;
+    if(contact_index >= 0 && cps_readContact(&contact, (uint16_t) contact_index + 1) != -1)
+        strncpy(ui_state.new_channel_name, contact.name, sizeof(ui_state.new_channel_name));
+    else
+        _ui_textInputPreset(ui_state.new_channel_name, 15, "");
 
     ui_state.menu_selected = 0;
     ui_state.edit_mode = false;
@@ -2244,8 +2329,8 @@ void ui_updateFSM(bool *sync_rtx)
                         if(msg.long_press)
                         {
                             ui_state.memory_edit_index = state.channel_index;
+                            _ui_prepareChannelEdit();
                             state.ui_screen = MENU_CHANNEL_EDIT;
-                            ui_state.menu_selected = 0;
                         }
                         else
                         {
@@ -2384,6 +2469,24 @@ void ui_updateFSM(bool *sync_rtx)
                                 ui_state.edit_mode = false;
                             }
                             break;
+                        case CE_BANDWIDTH:
+                            if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                _ui_cycleChannelBandwidth(+1);
+                                *sync_rtx = true;
+                                vp_announceBandwidth(state.channel.bandwidth, queueFlags);
+                            }
+                            else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
+                                _ui_cycleChannelBandwidth(-1);
+                                *sync_rtx = true;
+                                vp_announceBandwidth(state.channel.bandwidth, queueFlags);
+                            }
+                            else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            break;
                         case CE_POWER:
                             if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
                             {
@@ -2396,6 +2499,20 @@ void ui_updateFSM(bool *sync_rtx)
                                 _ui_cycleChannelPower(-1);
                                 *sync_rtx = true;
                                 vp_announcePower(state.channel.power, queueFlags);
+                            }
+                            else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            break;
+                        case CE_ZONE:
+                            if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                _ui_cycleChannelZone(+1);
+                            }
+                            else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
+                                _ui_cycleChannelZone(-1);
                             }
                             else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
                             {
@@ -2434,7 +2551,9 @@ void ui_updateFSM(bool *sync_rtx)
                             _ui_fsm_beginChannelFrequencyInput(SET_TX);
                             break;
                         case CE_MODE:
+                        case CE_BANDWIDTH:
                         case CE_POWER:
+                        case CE_ZONE:
                             ui_state.edit_mode = true;
                             break;
                         case CE_SAVE:
@@ -2612,6 +2731,7 @@ void ui_updateFSM(bool *sync_rtx)
                 break;
             // Zone menu screen
             case MENU_BANK:
+            case MENU_BANK_ACTION:
             // Channel menu screen
             case MENU_CHANNEL:
             case MENU_CHANNEL_ACTION:
@@ -2620,7 +2740,7 @@ void ui_updateFSM(bool *sync_rtx)
                 if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
                     // Using 1 as parameter disables menu wrap around
                 {
-                    if(state.ui_screen == MENU_CHANNEL_ACTION)
+                    if(state.ui_screen == MENU_CHANNEL_ACTION || state.ui_screen == MENU_BANK_ACTION)
                         _ui_menuUp(channel_action_num);
                     else
                         _ui_menuUp(1);
@@ -2630,29 +2750,40 @@ void ui_updateFSM(bool *sync_rtx)
                     if(state.ui_screen == MENU_BANK)
                     {
                         bankHdr_t bank;
-                        // manu_selected is 0-based
-                        // bank 0 means "All Channel" mode
-                        // banks (1, n) are mapped to banks (0, n-1)
-                        if(cps_readBankHeader(&bank, ui_state.menu_selected) != -1)
+                        if(ui_state.menu_selected == 0)
+                            ui_state.menu_selected += 1;
+                        else if(ui_state.menu_selected == 1)
+                        {
+                            if(cps_readBankHeader(&bank, 0) != -1)
+                                ui_state.menu_selected += 1;
+                        }
+                        else if(cps_readBankHeader(&bank, ui_state.menu_selected - 1) != -1)
                             ui_state.menu_selected += 1;
                     }
                     else if(state.ui_screen == MENU_CHANNEL)
                     {
                         channel_t channel;
                         if((ui_state.menu_selected == 0) &&
-                           (cps_readChannel(&channel, 0) != -1))
+                           (cps_readChannel(&channel, 1) != -1))
                             ui_state.menu_selected += 1;
-                        else if(cps_readChannel(&channel, ui_state.menu_selected) != -1)
+                        else if(cps_readChannel(&channel, ui_state.menu_selected + 1) != -1)
                             ui_state.menu_selected += 1;
                     }
                     else if(state.ui_screen == MENU_CHANNEL_ACTION)
                     {
                         _ui_menuDown(channel_action_num);
                     }
+                    else if(state.ui_screen == MENU_BANK_ACTION)
+                    {
+                        _ui_menuDown(channel_action_num);
+                    }
                     else if(state.ui_screen == MENU_CONTACTS)
                     {
                         contact_t contact;
-                        if(cps_readContact(&contact, ui_state.menu_selected + 1) != -1)
+                        if((ui_state.menu_selected == 0) &&
+                           (cps_readContact(&contact, 1) != -1))
+                            ui_state.menu_selected += 1;
+                        else if(cps_readContact(&contact, ui_state.menu_selected + 1) != -1)
                             ui_state.menu_selected += 1;
                     }
                 }
@@ -2660,26 +2791,54 @@ void ui_updateFSM(bool *sync_rtx)
                 {
                     if(state.ui_screen == MENU_BANK)
                     {
-                        bankHdr_t newbank;
-                        int result = 0;
-                        // If "All channels" is selected, load default bank
                         if(ui_state.menu_selected == 0)
+                        {
                             state.bank_enabled = false;
-                        else
-                        {
-                            state.bank_enabled = true;
-                            result = cps_readBankHeader(&newbank, ui_state.menu_selected - 1);
-                        }
-                        if(result != -1)
-                        {
-                            state.bank = ui_state.menu_selected - 1;
-                            // If we were in VFO mode, save VFO channel
                             if(ui_state.last_main_state == MAIN_VFO)
                                 state.vfo_channel = state.channel;
-                            // Load bank first channel
                             _ui_fsm_loadChannel(0, sync_rtx);
-                            // Switch to MEM screen
                             state.ui_screen = MAIN_MEM;
+                        }
+                        else if(ui_state.menu_selected == 1)
+                        {
+                            _ui_prepareBankRename(-1);
+                            state.ui_screen = MENU_BANK_RENAME;
+                        }
+                        else
+                        {
+                            ui_state.bank_edit_index = ui_state.menu_selected - 2;
+                            ui_state.menu_selected = 0;
+                            state.ui_screen = MENU_BANK_ACTION;
+                        }
+                    }
+                    else if(state.ui_screen == MENU_BANK_ACTION)
+                    {
+                        bankHdr_t newbank;
+                        int result = 0;
+
+                        switch(ui_state.menu_selected)
+                        {
+                            case CA_OPEN:
+                                state.bank_enabled = true;
+                                result = cps_readBankHeader(&newbank, ui_state.bank_edit_index);
+                                if(result != -1)
+                                {
+                                    state.bank = ui_state.bank_edit_index;
+                                    if(ui_state.last_main_state == MAIN_VFO)
+                                        state.vfo_channel = state.channel;
+                                    _ui_fsm_loadChannel(0, sync_rtx);
+                                    state.ui_screen = MAIN_MEM;
+                                }
+                                break;
+                            case CA_EDIT:
+                                _ui_prepareBankRename(ui_state.bank_edit_index);
+                                state.ui_screen = MENU_BANK_RENAME;
+                                break;
+                            case CA_DELETE:
+                                cps_deleteBankHeader(ui_state.bank_edit_index);
+                                state.ui_screen = MENU_BANK;
+                                ui_state.menu_selected = 0;
+                                break;
                         }
                     }
                     if(state.ui_screen == MENU_CHANNEL)
@@ -2708,11 +2867,27 @@ void ui_updateFSM(bool *sync_rtx)
                             case CA_EDIT:
                                 if(_ui_fsm_loadChannel(ui_state.memory_edit_index, sync_rtx) != -1)
                                 {
-                                    ui_state.menu_selected = 0;
+                                    _ui_prepareChannelEdit();
                                     state.ui_screen = MENU_CHANNEL_EDIT;
                                 }
                                 break;
+                            case CA_DELETE:
+                                if(_ui_fsm_loadChannel(ui_state.memory_edit_index, sync_rtx) != -1)
+                                {
+                                    ui_state.edit_mode = false;
+                                    state.ui_screen = MENU_CHANNEL_DELETE;
+                                }
+                                break;
                         }
+                    }
+                    else if(state.ui_screen == MENU_CONTACTS)
+                    {
+                        if(ui_state.menu_selected == 0)
+                            _ui_prepareContactEdit(-1);
+                        else
+                            _ui_prepareContactEdit(ui_state.menu_selected - 1);
+
+                        state.ui_screen = MENU_CONTACT_EDIT;
                     }
                 }
                 else if(msg.keys & KEY_ESC)
@@ -2722,8 +2897,101 @@ void ui_updateFSM(bool *sync_rtx)
                         ui_state.menu_selected = ui_state.memory_edit_index + 1;
                         state.ui_screen = MENU_CHANNEL;
                     }
+                    else if(state.ui_screen == MENU_BANK_ACTION)
+                    {
+                        ui_state.menu_selected = ui_state.bank_edit_index + 2;
+                        state.ui_screen = MENU_BANK;
+                    }
                     else
                         _ui_menuBack(MENU_TOP);
+                }
+                break;
+            case MENU_BANK_RENAME:
+            case MENU_CONTACT_RENAME:
+                if(msg.keys & KEY_ENTER)
+                {
+                    if(ui_state.new_channel_name[ui_state.input_position] == '_')
+                        ui_state.new_channel_name[ui_state.input_position] = '\0';
+                    else
+                        _ui_textInputConfirm(ui_state.new_channel_name);
+
+                    if(state.ui_screen == MENU_BANK_RENAME)
+                    {
+                        bankHdr_t bank = {0};
+                        strncpy(bank.name, ui_state.new_channel_name, sizeof(bank.name));
+                        bank.ch_count = 0;
+
+                        if(ui_state.bank_edit_index >= 0)
+                            cps_writeBankHeader(bank, ui_state.bank_edit_index);
+                        else
+                            cps_insertBankHeader(bank, _ui_getBankCount());
+
+                        state.ui_screen = MENU_BANK;
+                    }
+                    else
+                    {
+                        state.ui_screen = MENU_CONTACT_EDIT;
+                    }
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    state.ui_screen = (state.ui_screen == MENU_BANK_RENAME) ? MENU_BANK : MENU_CONTACT_EDIT;
+                }
+                else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                        msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                {
+                    _ui_textInputDel(ui_state.new_channel_name);
+                }
+                else if(input_isCharPressed(msg))
+                {
+                    _ui_textInputKeypad(ui_state.new_channel_name, 15, msg, false);
+                }
+                break;
+            case MENU_CONTACT_EDIT:
+                if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                    _ui_menuUp(contact_edit_num);
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                    _ui_menuDown(contact_edit_num);
+                else if(msg.keys & KEY_ENTER)
+                {
+                    switch(ui_state.menu_selected)
+                    {
+                        case CT_RENAME:
+                            _ui_textInputPreset(ui_state.new_channel_name, 15, ui_state.new_channel_name);
+                            state.ui_screen = MENU_CONTACT_RENAME;
+                            break;
+                        case CT_SAVE:
+                        {
+                            contact_t contact = {0};
+
+                            if(ui_state.contact_edit_index >= 0)
+                                cps_readContact(&contact, ui_state.contact_edit_index + 1);
+
+                            strncpy(contact.name, ui_state.new_channel_name, sizeof(contact.name));
+                            contact.mode = OPMODE_M17;
+
+                            if(ui_state.contact_edit_index >= 0)
+                                cps_writeContact(contact, ui_state.contact_edit_index + 1);
+                            else
+                                cps_insertContact(contact, _ui_getContactCount() + 1);
+
+                            state.ui_screen = MENU_CONTACTS;
+                            break;
+                        }
+                        case CT_DELETE:
+                            if(ui_state.contact_edit_index >= 0)
+                                cps_deleteContact(ui_state.contact_edit_index + 1);
+                            state.ui_screen = MENU_CONTACTS;
+                            ui_state.menu_selected = 0;
+                            break;
+                        case CT_CANCEL:
+                            state.ui_screen = MENU_CONTACTS;
+                            break;
+                    }
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    state.ui_screen = MENU_CONTACTS;
                 }
                 break;
             case MENU_GAMES:
@@ -2784,6 +3052,9 @@ void ui_updateFSM(bool *sync_rtx)
                             break;
                         case S_RESET2DEFAULTS:
                             state.ui_screen = SETTINGS_RESET2DEFAULTS;
+                            break;
+                        case S_FACTORY_RESET:
+                            state.ui_screen = SETTINGS_FACTORY_RESET;
                             break;
                         default:
                             state.ui_screen = MENU_SETTINGS;
@@ -3453,6 +3724,33 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                 }
                 break;
+            case SETTINGS_FACTORY_RESET:
+                if(! ui_state.edit_mode)
+                {
+                    if(msg.keys & KEY_ENTER)
+                    {
+                        ui_state.edit_mode = true;
+                    }
+                    else if(msg.keys & KEY_ESC)
+                    {
+                        _ui_menuBack(MENU_SETTINGS);
+                    }
+                }
+                else
+                {
+                    if(msg.keys & KEY_ENTER)
+                    {
+                        ui_state.edit_mode = false;
+                        _ui_resetCodeplug(sync_rtx);
+                        _ui_menuBack(MENU_SETTINGS);
+                    }
+                    else if(msg.keys & KEY_ESC)
+                    {
+                        ui_state.edit_mode = false;
+                        _ui_menuBack(MENU_SETTINGS);
+                    }
+                }
+                break;
             case GAME_RUN:
                 ui_games_handleRunningKeyEvent(msg);
                 break;
@@ -3567,6 +3865,12 @@ bool ui_updateGUI()
         case MENU_BANK:
             _ui_drawMenuBank(&ui_state);
             break;
+        case MENU_BANK_ACTION:
+            _ui_drawMenuBankAction(&ui_state);
+            break;
+        case MENU_BANK_RENAME:
+            _ui_drawMenuBankRename(&ui_state);
+            break;
         // Channel menu screen
         case MENU_CHANNEL:
             _ui_drawMenuChannel(&ui_state);
@@ -3589,6 +3893,12 @@ bool ui_updateGUI()
         // Contacts menu screen
         case MENU_CONTACTS:
             _ui_drawMenuContacts(&ui_state);
+            break;
+        case MENU_CONTACT_EDIT:
+            _ui_drawMenuContactEdit(&ui_state);
+            break;
+        case MENU_CONTACT_RENAME:
+            _ui_drawMenuContactRename(&ui_state);
             break;
         case MENU_GAMES:
             ui_games_drawLibrary(&ui_state);
@@ -3662,6 +3972,9 @@ bool ui_updateGUI()
         // Screen to support resetting Settings and VFO to defaults
         case SETTINGS_RESET2DEFAULTS:
             _ui_drawSettingsReset2Defaults(&ui_state);
+            break;
+        case SETTINGS_FACTORY_RESET:
+            _ui_drawSettingsFactoryReset(&ui_state);
             break;
         // Screen to set frequency offset and step
         case SETTINGS_RADIO:

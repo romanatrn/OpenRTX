@@ -208,7 +208,7 @@ static void ui_games_drawTitleArt(ui_game_id_t game_id)
         case UI_GAME_TETRIS:
             gfx_drawRect((point_t){center.x - 20, center.y - 12}, 17, 5, color_white, true);
             gfx_drawRect((point_t){center.x - 8, center.y - 6}, 11, 11, yellow_fab413, true);
-            gfx_drawRect((point_t){center.x + 7, center.y - 12}, 5, 17, color_white, true);
+            gfx_drawRect((point_t){center.x + 7, center.y - 10}, 5, 13, color_white, true);
             gfx_drawRect((point_t){center.x + 16, center.y - 4}, 11, 11, color_grey, true);
             break;
 
@@ -278,16 +278,23 @@ static void ui_games_drawTitleScreen(void)
 {
     const ui_game_driver_t *game = ui_games_runtime.active_game;
     char best_buf[24];
+    point_t panel =
+    {
+        (CONFIG_SCREEN_HEIGHT > 64) ? 4 : 2,
+        (CONFIG_SCREEN_HEIGHT > 64) ? 10 : 8
+    };
+    uint16_t panel_width = CONFIG_SCREEN_WIDTH - panel.x - panel.x;
+    uint16_t panel_height = CONFIG_SCREEN_HEIGHT - panel.y - panel.y;
 
     gfx_fillScreen(color_black);
-    gfx_drawRect((point_t){layout.horizontal_pad, layout.top_h + 8},
-                 CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2),
-                 CONFIG_SCREEN_HEIGHT - (layout.top_h + 12),
+    gfx_drawRect(panel,
+                 panel_width,
+                 panel_height,
                  color_grey,
                  false);
 
-    gfx_print((point_t){0, layout.top_h + 20},
-              FONT_SIZE_16PT,
+    gfx_print((point_t){0, panel.y + ((CONFIG_SCREEN_HEIGHT > 64) ? 14 : 10)},
+              FONT_SIZE_8PT,
               TEXT_ALIGN_CENTER,
               yellow_fab413,
               game->title);
