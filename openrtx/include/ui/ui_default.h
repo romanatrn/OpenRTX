@@ -122,7 +122,20 @@ enum displayItems
     D_CONTRAST,
 #endif
     D_TIMER,
-    D_BATTERY
+    D_BATTERY,
+    D_THEME
+};
+
+enum uiThemes
+{
+    THEME_CLASSIC = 0,
+    THEME_OCEAN,
+    THEME_FOREST,
+    THEME_SUNSET,
+    THEME_AMBER,
+    THEME_PHOSPHOR,
+    THEME_CREAM,
+    THEME_PLASMA
 };
 
 #ifdef CONFIG_GPS
@@ -266,6 +279,7 @@ extern const char *settings_radio_items[];
 extern const char *settings_m17_items[];
 extern const char *settings_fm_items[];
 extern const char * settings_accessibility_items[];
+extern const char *ui_theme_names[];
 extern const char *backup_restore_items[];
 extern const char *channel_edit_items[];
 extern const char *info_items[];
@@ -282,9 +296,11 @@ extern const uint8_t backup_restore_num;
 extern const uint8_t channel_edit_num;
 extern const uint8_t info_num;
 extern const uint8_t author_num;
-extern const color_t color_black;
-extern const color_t color_grey;
-extern const color_t color_white;
-extern const color_t yellow_fab413;
+extern color_t color_black;
+extern color_t color_grey;
+extern color_t color_white;
+extern color_t yellow_fab413;
+
+void _ui_clearScreen();
 
 #endif /* UI_DEFAULT_H */
