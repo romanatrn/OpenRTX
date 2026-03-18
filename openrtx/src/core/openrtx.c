@@ -9,6 +9,7 @@
 #include "interfaces/display.h"
 #include "interfaces/delays.h"
 #include "interfaces/cps_io.h"
+#include "peripherals/rng.h"
 #include "core/voicePrompts.h"
 #include "core/graphics.h"
 #include "core/openrtx.h"
@@ -26,6 +27,7 @@ void openrtx_init()
     state.devStatus = STARTUP;
 
     platform_init();    // Initialize low-level platform drivers
+    rng_init();         // Initialize hardware/software RNG
     state_init();       // Initialize radio state
 
     gfx_init();         // Initialize display and graphics driver
@@ -74,6 +76,7 @@ void *openrtx_run(void *arg)
 
     // Device thread terminated, complete shutdown sequence
     state_terminate();
+    rng_terminate();
     platform_terminate();
 
     return NULL;

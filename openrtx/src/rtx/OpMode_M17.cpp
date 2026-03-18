@@ -497,14 +497,22 @@ bool OpMode_M17::compareCallsigns(const std::string& localCs,
 bool OpMode_M17::resolveEncryptionConfig(uint8_t& encType, uint8_t& encSubType,
                                          uint8_t& keyIndex) const
 {
-    encType = state.settings.m17_default_encryption;
-    encSubType = state.settings.m17_default_enc_subtype;
-    keyIndex = state.settings.m17_default_key_index;
+    const uint8_t defaultEncType = state.settings.m17_default_encryption;
+    const uint8_t defaultEncSubType = state.settings.m17_default_enc_subtype;
+    const uint8_t defaultKeyIndex = state.settings.m17_default_key_index;
+
+    encType = defaultEncType;
+    encSubType = defaultEncSubType;
+    keyIndex = defaultKeyIndex;
 
     if((state.tuner_mode != VFO) && (state.channel.mode == OPMODE_M17))
     {
-        encType = state.channel.m17.encr;
-        encSubType = state.channel.m17.enc_subtype;
+        if(state.channel.m17.encr != PLAIN)
+        {
+            encType = state.channel.m17.encr;
+            encSubType = state.channel.m17.enc_subtype;
+        }
+
         if(state.channel.m17.key_index != 0)
             keyIndex = state.channel.m17.key_index;
     }

@@ -60,34 +60,6 @@ static std::vector< uint8_t > encodeHdlcBits(const uint8_t *frame,
     return bits;
 }
 
-static std::vector< int16_t > renderSamples(const std::vector< uint8_t >& bits)
-{
-    std::vector< int16_t > samples;
-    samples.reserve(bits.size() * static_cast< size_t >(SAMPLES_PER_SYMBOL));
-
-    bool mark = true;
-    float phase = 0.0f;
-
-    for(uint8_t bit : bits)
-    {
-        if(bit == 0)
-            mark = !mark;
-
-        const float freq = mark ? MARK_FREQ : SPACE_FREQ;
-        const float phaseStep = (2.0f * PI_F * freq) / static_cast< float >(AFSK1200Modulator::SAMPLE_RATE);
-
-        for(uint8_t i = 0; i < static_cast< uint8_t >(SAMPLES_PER_SYMBOL); ++i)
-        {
-            samples.push_back(static_cast< int16_t >(std::sin(phase) * AMP));
-            phase += phaseStep;
-            if(phase > (2.0f * PI_F))
-                phase -= (2.0f * PI_F);
-        }
-    }
-
-    return samples;
-}
-
 AFSK1200Modulator::AFSK1200Modulator()
 {
 }
@@ -154,18 +126,43 @@ bool AFSK1200Modulator::sendFrame(const uint8_t *frame,
         return false;
 
     const std::vector< uint8_t > bits = encodeHdlcBits(frame, length, preambleFlags, tailFlags);
-    const std::vector< int16_t > samples = renderSamples(bits);
-    size_t samplePos = 0;
+    size_t bitPos = 0;
+    uint8_t sampleInSymbol = 0;
+    bool mark = true;
+    float phase = 0.0f;
     stream_sample_t *idle = outputStream_getIdleBuffer(outStream);
 
-    while((idle != nullptr) && (samplePos < samples.size()))
+    while((idle != nullptr) && (bitPos < bits.size()))
     {
-        const size_t chunk = std::min(HALF_BUFFER, samples.size() - samplePos);
-        std::memcpy(idle, samples.data() + samplePos, chunk * sizeof(stream_sample_t));
+        size_t chunk = 0;
+        while((chunk < HALF_BUFFER) && (bitPos < bits.size()))
+        {
+            if(sampleInSymbol == 0)
+            {
+                if(bits[bitPos] == 0)
+                    mark = !mark;
+            }
+
+            const float freq = mark ? MARK_FREQ : SPACE_FREQ;
+            const float phaseStep = (2.0f * PI_F * freq)
+                                  / static_cast< float >(AFSK1200Modulator::SAMPLE_RATE);
+
+            idle[chunk++] = static_cast< int16_t >(std::sin(phase) * AMP);
+            phase += phaseStep;
+            if(phase > (2.0f * PI_F))
+                phase -= (2.0f * PI_F);
+
+            sampleInSymbol++;
+            if(sampleInSymbol >= static_cast< uint8_t >(SAMPLES_PER_SYMBOL))
+            {
+                sampleInSymbol = 0;
+                bitPos++;
+            }
+        }
+
         if(chunk < HALF_BUFFER)
             std::memset(idle + chunk, 0, (HALF_BUFFER - chunk) * sizeof(stream_sample_t));
 
-        samplePos += chunk;
         if(outputStream_sync(outStream, true) == false)
             return false;
 
@@ -175,14 +172,10 @@ bool AFSK1200Modulator::sendFrame(const uint8_t *frame,
     if(idle != nullptr)
     {
         std::memset(idle, 0, HALF_BUFFER * sizeof(stream_sample_t));
-        outputStream_sync(outStream, true);
+        if(outputStream_sync(outStream, true) == false)
+            return false;
     }
 
-    audioStream_stop(outStream);
-    audioPath_release(outPath);
-    outStream = -1;
-    outPath = -1;
-    running = false;
     return true;
 }
 
