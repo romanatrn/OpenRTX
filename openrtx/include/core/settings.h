@@ -48,8 +48,8 @@ typedef struct
             m17_can         : 4;  // M17 CAN
     uint8_t vpLevel         : 3,  // Voice prompt level
             vpPhoneticSpell : 1,  // Phonetic spell enabled
-            macroMenuLatch  : 1,  // Automatic latch of macro menu
-            theme           : 3;  // UI color theme
+            macroMenuLatch  : 1;  // Automatic latch of macro menu
+    uint8_t theme;                // UI color theme
     bool    m17_can_rx;           // Check M17 CAN on RX
     char    m17_dest[10];         // M17 destination
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage

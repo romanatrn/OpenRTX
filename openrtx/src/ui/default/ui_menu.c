@@ -445,7 +445,16 @@ int _ui_getAPRSValueName(char *buf, uint8_t max_len, uint8_t index)
             sniprintf(buf, max_len, "%umin", last_state.settings.aprs_interval);
             break;
         case APRS_PATH:
-            sniprintf(buf, max_len, "%s", last_state.settings.aprs_path);
+            if(strlen(last_state.settings.aprs_path) > 8)
+            {
+                char tmp[10] = {0};
+                memcpy(tmp, last_state.settings.aprs_path, 8);
+                sniprintf(buf, max_len, "%s*", tmp);
+            }
+            else
+            {
+                sniprintf(buf, max_len, "%s", last_state.settings.aprs_path);
+            }
             break;
         case APRS_COMMENT:
             if(strlen(last_state.settings.aprs_comment) > 8)
@@ -1139,34 +1148,114 @@ void _ui_drawMenuAPRS(ui_state_t* ui_state)
 {
     (void) ui_state;
 
+    char path_buf[16] = {0};
+    char lat_buf[18] = {0};
+    char lon_buf[18] = {0};
+    char gps_buf[22] = {0};
+    char radio_buf[22] = {0};
+    char beacon_buf[22] = {0};
+
+    const bool aprsReady = (last_state.settings.aprs_enabled == true)
+                        && (last_state.channel.mode == OPMODE_APRS);
+    const bool gpsReady = last_state.gpsDetected
+                       && last_state.settings.gps_enabled
+                       && (last_state.gps_data.fix_quality != FIX_QUALITY_NO_FIX);
+
     _ui_clearScreen();
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, "APRS");
+    gfx_drawSymbol(layout.top_pos, layout.top_symbol_size, TEXT_ALIGN_LEFT,
+                   gpsReady ? yellow_fab413 : color_white,
+                   gpsReady ? SYMBOL_CROSSHAIRS_GPS : SYMBOL_CROSSHAIRS);
 
-    gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
-              color_white, "Mode:%s  GPS:%s",
-              (last_state.channel.mode == OPMODE_APRS) ? "APRS" : "FM",
-              (last_state.gps_data.fix_quality > 0) ? "Fix" : "NoFix");
+    point_t card_pos = {layout.horizontal_pad, layout.top_h + 2};
+    uint16_t card_w = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+    uint16_t card_h = CONFIG_SCREEN_HEIGHT - layout.top_h - layout.bottom_h - 6;
+    gfx_drawRect(card_pos, card_w, card_h, color_grey, false);
 
-    gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-              color_white, "Beacon:%s  KISS:%s",
-              last_state.settings.aprs_auto_beacon ? "Auto" : "Manual",
-              last_state.settings.aprs_kiss_enabled ? "On" : "Off");
-
-    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-              color_white, "Path:%s", last_state.settings.aprs_path);
-
-    if((last_state.settings.aprs_enabled == true) &&
-       (last_state.channel.mode == OPMODE_APRS))
+    if(strlen(last_state.settings.aprs_path) > 12)
     {
-        gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-                  yellow_fab413, "Enter: Beacon  >:Cfg");
+        memcpy(path_buf, last_state.settings.aprs_path, 12);
+        strcpy(path_buf + 12, "...");
     }
     else
     {
-        gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-                  yellow_fab413, "Set APRS mode, >:Cfg");
+        sniprintf(path_buf, sizeof(path_buf), "%s", last_state.settings.aprs_path);
     }
+
+    if(gpsReady)
+    {
+        const int32_t latitude = abs(last_state.gps_data.latitude);
+        const int32_t longitude = abs(last_state.gps_data.longitude);
+        const char latDir = (last_state.gps_data.latitude < 0) ? 'S' : 'N';
+        const char lonDir = (last_state.gps_data.longitude < 0) ? 'W' : 'E';
+
+        sniprintf(lat_buf, sizeof(lat_buf), "%c %d.%06d",
+                  latDir,
+                  (int) (latitude / 1000000),
+                  (int) (latitude % 1000000));
+        sniprintf(lon_buf, sizeof(lon_buf), "%c %d.%06d",
+                  lonDir,
+                  (int) (longitude / 1000000),
+                  (int) (longitude % 1000000));
+        sniprintf(gps_buf, sizeof(gps_buf), "%u sats  %dkm/h",
+                  (unsigned int) last_state.gps_data.active_sats,
+                  last_state.gps_data.speed);
+    }
+    else if(last_state.gpsDetected == false)
+    {
+        sniprintf(gps_buf, sizeof(gps_buf), "No GPS detected");
+    }
+    else if(last_state.settings.gps_enabled == false)
+    {
+        sniprintf(gps_buf, sizeof(gps_buf), "GPS disabled");
+    }
+    else
+    {
+        sniprintf(gps_buf, sizeof(gps_buf), "Waiting for fix");
+    }
+
+    sniprintf(radio_buf, sizeof(radio_buf), "%s  %s",
+              aprsReady ? "APRS live" : "FM channel",
+              last_state.settings.aprs_kiss_enabled ? "KISS" : "Radio");
+    sniprintf(beacon_buf, sizeof(beacon_buf), "%s  %u min",
+              last_state.settings.aprs_auto_beacon ? "Auto beacon" : "Manual beacon",
+              last_state.settings.aprs_interval);
+
+    gfx_printLine(1, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                  layout.horizontal_pad + 2, layout.menu_font,
+                  TEXT_ALIGN_CENTER, yellow_fab413, "%s", radio_buf);
+    gfx_printLine(2, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                  layout.horizontal_pad + 2, layout.menu_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", beacon_buf);
+    gfx_printLine(3, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                  layout.horizontal_pad + 2, layout.menu_font,
+                  TEXT_ALIGN_CENTER, gpsReady ? color_white : yellow_fab413,
+                  "%s", gps_buf);
+
+    if(gpsReady)
+    {
+        gfx_printLine(4, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                      layout.horizontal_pad + 2, layout.menu_font,
+                      TEXT_ALIGN_CENTER, color_white, "%s", lat_buf);
+        gfx_printLine(5, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                      layout.horizontal_pad + 2, layout.menu_font,
+                      TEXT_ALIGN_CENTER, color_white, "%s", lon_buf);
+    }
+    else
+    {
+        gfx_printLine(4, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                      layout.horizontal_pad + 2, layout.menu_font,
+                      TEXT_ALIGN_CENTER, color_white, "Path %s", path_buf);
+        gfx_printLine(5, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                      layout.horizontal_pad + 2, layout.menu_font,
+                      TEXT_ALIGN_CENTER, color_white, "Enable GPS for live coords");
+    }
+
+    gfx_printLine(6, 6, card_pos.y + 2, card_pos.y + card_h - 2,
+                  layout.horizontal_pad + 2, layout.menu_font,
+                  TEXT_ALIGN_CENTER, yellow_fab413,
+                  aprsReady ? "Enter beacon now   > config" : "Switch mode to APRS   > config");
 }
 
 void _ui_drawMenuSettings(ui_state_t* ui_state)

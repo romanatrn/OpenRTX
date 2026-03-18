@@ -20,8 +20,6 @@ state_t state;
 pthread_mutex_t state_mutex;
 static long long int lastUpdate = 0;
 static settings_t lastPersistedSettings;
-static long long settingsDirtySince = 0;
-static const long long settingsSaveDelay = 3000;
 
 // Commonly used frequency steps, expressed in Hz
 const uint32_t freq_steps[] = { 1000, 5000, 6250, 10000, 12500, 15000,
@@ -103,14 +101,11 @@ int state_saveSettings()
         return -1;
 
     lastPersistedSettings = settingsCopy;
-    settingsDirtySince = 0;
     return 0;
 }
 
 void state_task()
 {
-    bool saveSettings = false;
-
     // Update radio state once every 100ms
     if((getTick() - lastUpdate) < 100)
         return;
@@ -151,27 +146,7 @@ void state_task()
     state.time = platform_getCurrentTime();
     #endif
 
-    if(memcmp(&state.settings, &lastPersistedSettings, sizeof(settings_t)) != 0)
-    {
-        if(settingsDirtySince == 0)
-            settingsDirtySince = lastUpdate;
-        else if((lastUpdate - settingsDirtySince) >= settingsSaveDelay)
-        {
-            saveSettings = true;
-        }
-    }
-    else
-    {
-        settingsDirtySince = 0;
-    }
-
     pthread_mutex_unlock(&state_mutex);
-
-    if(saveSettings)
-    {
-        if(state_saveSettings() == 0)
-            {}
-    }
 
     ui_pushEvent(EVENT_STATUS, 0);
 }

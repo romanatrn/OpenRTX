@@ -372,6 +372,9 @@ static const ui_theme_colors_t ui_theme_colors[] =
     {{6, 26, 6, 255},   {170, 255, 170, 255}, {54, 118, 54, 255},  {118, 255, 118, 255}},
     {{50, 38, 24, 255}, {255, 244, 220, 255}, {150, 118, 72, 255}, {255, 198, 112, 255}},
     {{30, 8, 38, 255},  {244, 226, 255, 255}, {100, 58, 128, 255}, {255, 84, 164, 255}},
+    {{41, 45, 62, 255}, {214, 222, 255, 255}, {92, 99, 144, 255},  {130, 170, 255, 255}},
+    {{46, 52, 64, 255}, {229, 233, 240, 255}, {94, 129, 172, 255}, {136, 192, 208, 255}},
+    {{24, 26, 27, 255}, {240, 238, 232, 255}, {105, 117, 101, 255}, {167, 192, 120, 255}},
 };
 
 const char *ui_theme_names[] =
@@ -383,7 +386,10 @@ const char *ui_theme_names[] =
     "Amber CRT",
     "Green CRT",
     "Cream",
-    "Plasma"
+    "Plasma",
+    "Palenight",
+    "Nord",
+    "Everforest"
 };
 
 color_t color_black = {0, 0, 0, 255};
@@ -399,6 +405,7 @@ static bool macro_menu = false;
 static bool layout_ready = false;
 static bool redraw_needed = true;
 static settings_t last_saved_settings;
+static long long last_settings_announce_tick = 0;
 
 static bool standby = false;
 static long long last_event_tick = 0;
@@ -2167,13 +2174,23 @@ static bool _ui_isSettingsScreen(const uint8_t screen)
     }
 }
 
-static void _ui_persistSettingsIfNeeded()
+static void _ui_saveSettingsOnExit(bool leaving_settings)
 {
+    if(leaving_settings == false)
+        return;
+
     if(memcmp(&state.settings, &last_saved_settings, sizeof(settings_t)) != 0)
-    {
         if(state_saveSettings() == 0)
             last_saved_settings = state.settings;
-    }
+}
+
+static bool _ui_shouldAnnounceSettingChange(long long now)
+{
+    if((now - last_settings_announce_tick) < 250)
+        return false;
+
+    last_settings_announce_tick = now;
+    return true;
 }
 
 void ui_init()
@@ -2188,6 +2205,7 @@ void ui_init()
     ui_state = (const struct ui_state_t){ 0 };
     ui_state.memory_edit_index = -1;
     last_saved_settings = state.settings;
+    last_settings_announce_tick = 0;
     ui_games_init();
 }
 
@@ -3594,20 +3612,23 @@ void ui_updateFSM(bool *sync_rtx)
 #ifdef CONFIG_SCREEN_BRIGHTNESS
                         case D_BRIGHTNESS:
                             _ui_changeBrightness(-5);
-                            vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
-                                                   state.settings.brightness);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
+                                                       state.settings.brightness);
                             break;
 #endif
 #ifdef CONFIG_SCREEN_CONTRAST
                         case D_CONTRAST:
                             _ui_changeContrast(-4);
-                            vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
-                                                   state.settings.contrast);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
+                                                       state.settings.contrast);
                             break;
 #endif
                         case D_TIMER:
                             _ui_changeTimer(-1);
-                            vp_announceDisplayTimer();
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceDisplayTimer();
                             break;
                         case D_BATTERY:
                             state.settings.showBatteryIcon = !state.settings.showBatteryIcon;
@@ -3627,20 +3648,23 @@ void ui_updateFSM(bool *sync_rtx)
 #ifdef CONFIG_SCREEN_BRIGHTNESS
                         case D_BRIGHTNESS:
                             _ui_changeBrightness(+5);
-                            vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
-                                                   state.settings.brightness);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
+                                                       state.settings.brightness);
                             break;
 #endif
 #ifdef CONFIG_SCREEN_CONTRAST
                         case D_CONTRAST:
                             _ui_changeContrast(+4);
-                            vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
-                                                   state.settings.contrast);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceSettingsInt(&currentLanguage->brightness, queueFlags,
+                                                       state.settings.contrast);
                             break;
 #endif
                         case D_TIMER:
                             _ui_changeTimer(+1);
-                            vp_announceDisplayTimer();
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceDisplayTimer();
                             break;
                         case D_BATTERY:
                             state.settings.showBatteryIcon = !state.settings.showBatteryIcon;
@@ -3675,16 +3699,18 @@ void ui_updateFSM(bool *sync_rtx)
                                 state.settings.gps_enabled = 0;
                             else
                                 state.settings.gps_enabled = 1;
-                            vp_announceSettingsOnOffToggle(&currentLanguage->gpsEnabled,
-                                                           queueFlags,
-                                                           state.settings.gps_enabled);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceSettingsOnOffToggle(&currentLanguage->gpsEnabled,
+                                                               queueFlags,
+                                                               state.settings.gps_enabled);
                             break;
 #ifdef CONFIG_RTC
                         case G_SET_TIME:
                             state.settings.gpsSetTime = !state.settings.gpsSetTime;
-                            vp_announceSettingsOnOffToggle(&currentLanguage->gpsSetTime,
-                                                           queueFlags,
-                                                           state.settings.gpsSetTime);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceSettingsOnOffToggle(&currentLanguage->gpsSetTime,
+                                                               queueFlags,
+                                                               state.settings.gpsSetTime);
                             break;
                         case G_TIMEZONE:
                             if(msg.keys & KEY_LEFT || msg.keys & KEY_DOWN ||
@@ -3693,7 +3719,8 @@ void ui_updateFSM(bool *sync_rtx)
                             else if(msg.keys & KEY_RIGHT || msg.keys & KEY_UP ||
                                     msg.keys & KNOB_RIGHT)
                                 state.settings.utc_timezone += 1;
-                            vp_announceTimeZone(state.settings.utc_timezone, queueFlags);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceTimeZone(state.settings.utc_timezone, queueFlags);
                             break;
 #endif
                         default:
@@ -4239,11 +4266,12 @@ void ui_updateFSM(bool *sync_rtx)
 
                             state.channel.fm.rxTone %= CTCSS_FREQ_NUM;
                             *sync_rtx = true;
-                            vp_announceCTCSS(state.channel.fm.rxToneEn,
-                                             state.channel.fm.rxTone,
-                                             state.channel.fm.txToneEn,
-                                             state.channel.fm.txTone,
-                                             queueFlags | vpqIncludeDescriptions);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceCTCSS(state.channel.fm.rxToneEn,
+                                                 state.channel.fm.rxTone,
+                                                 state.channel.fm.txToneEn,
+                                                 state.channel.fm.txTone,
+                                                 queueFlags | vpqIncludeDescriptions);
                             break;
 
                         case FM_TX_TONE:
@@ -4265,11 +4293,12 @@ void ui_updateFSM(bool *sync_rtx)
 
                             state.channel.fm.txTone %= CTCSS_FREQ_NUM;
                             *sync_rtx = true;
-                            vp_announceCTCSS(state.channel.fm.rxToneEn,
-                                             state.channel.fm.rxTone,
-                                             state.channel.fm.txToneEn,
-                                             state.channel.fm.txTone,
-                                             queueFlags | vpqIncludeDescriptions);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceCTCSS(state.channel.fm.rxToneEn,
+                                                 state.channel.fm.rxTone,
+                                                 state.channel.fm.txToneEn,
+                                                 state.channel.fm.txTone,
+                                                 queueFlags | vpqIncludeDescriptions);
                             break;
 
                         case FM_TONE_MODE:
@@ -4287,11 +4316,12 @@ void ui_updateFSM(bool *sync_rtx)
                             }
 
                             *sync_rtx = true;
-                            vp_announceCTCSS(state.channel.fm.rxToneEn,
-                                             state.channel.fm.rxTone,
-                                             state.channel.fm.txToneEn,
-                                             state.channel.fm.txTone,
-                                             queueFlags | vpqIncludeDescriptions);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                vp_announceCTCSS(state.channel.fm.rxToneEn,
+                                                 state.channel.fm.rxTone,
+                                                 state.channel.fm.txToneEn,
+                                                 state.channel.fm.txTone,
+                                                 queueFlags | vpqIncludeDescriptions);
                             break;
                     }
                 }
@@ -4315,7 +4345,10 @@ void ui_updateFSM(bool *sync_rtx)
                             _ui_changeMacroLatch(false);
                             break;
                         case A_LEVEL:
-                            _ui_changeVoiceLevel(-1);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                _ui_changeVoiceLevel(-1);
+                            else
+                                state.settings.vpLevel -= (state.settings.vpLevel > vpNone);
                             break;
                         case A_PHONETIC:
                             _ui_changePhoneticSpell(false);
@@ -4333,7 +4366,10 @@ void ui_updateFSM(bool *sync_rtx)
                             _ui_changeMacroLatch(true);
                             break;
                         case A_LEVEL:
-                            _ui_changeVoiceLevel(1);
+                            if(_ui_shouldAnnounceSettingChange(now))
+                                _ui_changeVoiceLevel(1);
+                            else if(state.settings.vpLevel < vpHigh)
+                                state.settings.vpLevel += 1;
                             break;
                         case A_PHONETIC:
                             _ui_changePhoneticSpell(true);
@@ -4436,8 +4472,8 @@ void ui_updateFSM(bool *sync_rtx)
         if ((msg.keys &0xffff) && (state.settings.vpLevel == vpBeep))
             vp_beep(BEEP_KEY_GENERIC, SHORT_BEEP);
 
-        if(_ui_isSettingsScreen(priorUIScreen) && !_ui_isSettingsScreen(state.ui_screen))
-            state_saveSettings();
+        _ui_saveSettingsOnExit(_ui_isSettingsScreen(priorUIScreen) &&
+                               !_ui_isSettingsScreen(state.ui_screen));
 
         // If we exit and re-enter the same menu, we want to ensure it speaks.
         if (msg.keys & KEY_ESC)
@@ -4497,8 +4533,6 @@ void ui_updateFSM(bool *sync_rtx)
             _ui_enterStandby();
         }
     }
-
-    _ui_persistSettingsIfNeeded();
 
 }
 

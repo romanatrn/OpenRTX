@@ -349,8 +349,16 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         streamType_t type = {};
         type.fields.dataMode = M17_DATAMODE_STREAM;     // Stream
         type.fields.dataType = M17_DATATYPE_VOICE;      // Voice data
-        type.fields.encType  = encryptionActive ? encType : M17_ENCRYPTION_NONE;
-        type.fields.encSubType = encryptionActive ? encSubType : M17_META_TEXT;
+        if(encryptionActive)
+        {
+            type.fields.encType = static_cast<M17EncyptionType>(encType);
+            type.fields.encSubType = static_cast<M17MetaType>(encSubType);
+        }
+        else
+        {
+            type.fields.encType = M17_ENCRYPTION_NONE;
+            type.fields.encSubType = M17_META_TEXT;
+        }
         type.fields.CAN      = status->txCan;           // Channel access number
 
         lsf.setType(type);
