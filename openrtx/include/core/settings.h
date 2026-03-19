@@ -9,6 +9,10 @@
 
 #include "hwconfig.h"
 #include <stdbool.h>
+#include <stdint.h>
+
+#define M17_KEY_SLOTS 4
+#define M17_KEY_HEX_LEN 32
 
 typedef enum
 {
@@ -44,14 +48,22 @@ typedef struct
             m17_can         : 4;  // M17 CAN
     uint8_t vpLevel         : 3,  // Voice prompt level
             vpPhoneticSpell : 1,  // Phonetic spell enabled
-            macroMenuLatch  : 1,  // Automatic latch of macro menu
-            theme           : 3;  // UI color theme
+            macroMenuLatch  : 1;  // Automatic latch of macro menu
+    uint8_t theme;                // UI color theme
     bool    m17_can_rx;           // Check M17 CAN on RX
     char    m17_dest[10];         // M17 destination
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage
     bool    gpsSetTime;           // Use GPS to ajust RTC time
     char    M17_meta_text[53];    // M17 Meta Text to send
+    uint8_t m17_default_encryption;          // M17 default encryption mode
+    uint8_t m17_default_enc_subtype;         // M17 default encryption subtype
+    uint8_t m17_default_key_index;           // M17 default key slot (1-based, 0 disabled)
+    char    m17_keys[M17_KEY_SLOTS][M17_KEY_HEX_LEN + 1]; // M17 key slots as hex strings
     int16_t ppm_offset;           // Frequency offset for tuning (in tenth of ppm)
+    uint16_t snake_high_score;    // Best Snake score
+    uint16_t tetris_high_score;   // Best Tetris score
+    uint16_t bomber_high_score;   // Best Bomberman Lite score
+    uint16_t mines_high_score;    // Best Minesweeper clears
 }
 __attribute__((packed)) settings_t;
 
@@ -80,6 +92,14 @@ static const settings_t default_settings =
     false,
     false,
     "OpenRTX",
+    0,
+    0,
+    0,
+    { "", "", "", "" },
+    0,
+    0,
+    0,
+    0,
     0,
 };
 

@@ -42,11 +42,14 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/core/queue.c',
                'openrtx/src/core/chan.c',
                'openrtx/src/core/gps.c',
+               'openrtx/src/core/scan.c',
                'openrtx/src/core/dsp.cpp',
                'openrtx/src/core/cps.c',
                'openrtx/src/core/crc.c',
                'openrtx/src/core/datetime.c',
                'openrtx/src/core/openrtx.c',
+               'openrtx/src/core/backup.c',
+               'openrtx/src/core/xmodem.c',
                'openrtx/src/core/audio_codec.c',
                'openrtx/src/core/audio_stream.c',
                'openrtx/src/core/audio_path.cpp',
@@ -56,6 +59,7 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/core/voicePromptUtils.c',
                'openrtx/src/core/voicePromptData.S',
                'openrtx/src/core/nvmem_access.c',
+               'openrtx/src/ui/common/gps_map.c',
                'openrtx/src/rtx/rtx.cpp',
                'openrtx/src/rtx/OpMode_FM.cpp',
                'openrtx/src/rtx/OpMode_M17.cpp',
@@ -63,6 +67,7 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/protocols/M17/M17Golay.cpp',
                'openrtx/src/protocols/M17/MetaText.cpp',
                'openrtx/src/protocols/M17/Callsign.cpp',
+               'openrtx/src/protocols/M17/M17Crypto.cpp',
                'openrtx/src/protocols/M17/M17Modulator.cpp',
                'openrtx/src/protocols/M17/M17Demodulator.cpp',
                'openrtx/src/protocols/M17/M17FrameEncoder.cpp',
@@ -1109,9 +1114,17 @@ m17_callsign_test = executable('m17_callsign_test',
 m17_metatext_test = executable('m17_metatext_test',
                       sources : unit_test_src + ['tests/unit/M17_metatext.cpp'],
                       kwargs  : unit_test_opts)
+
+m17_crypto_test = executable('m17_crypto_test',
+                    sources : unit_test_src + ['tests/unit/M17_crypto.cpp'],
+                    kwargs  : unit_test_opts)
                  
 m17_demodulator_test = executable('m17_demodulator_test',
                             sources: unit_test_src + ['tests/unit/M17_demodulator.cpp'],
+                            kwargs: unit_test_opts)
+
+m17_dev_estimator_test = executable('m17_dev_estimator_test',
+                            sources: unit_test_src + ['tests/unit/M17_dev_estimator.cpp'],
                             kwargs: unit_test_opts)
 
 m17_rrc_test = executable('m17_rrc_test',
@@ -1137,9 +1150,11 @@ ui_check_standby_test = executable('ui_check_standby_test',
 test('M17 Golay Unit Test',   m17_golay_test)
 test('M17 Viterbi Unit Test', m17_viterbi_test)
 test('M17 Demodulator Test',  m17_demodulator_test)
+test('M17 DevEstimator Test', m17_dev_estimator_test)
 test('M17 RRC Test',          m17_rrc_test)
 test('M17 Callsign Unit Test',          m17_callsign_test)
 test('M17 Meta Text Unit Test',         m17_metatext_test)
+test('M17 Crypto Unit Test',            m17_crypto_test)
 test('Codeplug Test',         cps_test)
 ## test('Linux InputStream Test', linux_inputStream_test)
 test('minmea conversion Test', minmea_conversion_test)

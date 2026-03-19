@@ -39,10 +39,13 @@ typedef struct
              txTone   : 15; /**< TX CTC/DCS tone               */
 
     bool     toneEn;
+    bool     monitor;
 
-    uint8_t  can      : 4,  /**< M17 Channel Access Number     */
-             canRxEn  : 1,  /**< M17 Check CAN on RX           */
-             _unused  : 3;
+    uint8_t  txCan    : 4,  /**< M17 TX Channel Access Number  */
+             rxCan    : 4;  /**< M17 RX Channel Access Number  */
+
+    uint8_t  canRxEn  : 1,  /**< M17 Check CAN on RX           */
+             _unused  : 7;
 
     char     source_address[10];       /**< M17 call source address    */
     char     destination_address[10];  /**< M17 call routing address   */
