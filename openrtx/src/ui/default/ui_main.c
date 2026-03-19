@@ -121,10 +121,16 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
             break;
 
         case OPMODE_DMR:
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
+            gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                    color_white, "M17");
+            break;
+#else
             // Print talkgroup
             gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                     color_white, "DMR TG%s", "");
             break;
+#endif
 
         #ifdef CONFIG_M17
         case OPMODE_M17:
@@ -272,8 +278,8 @@ void _ui_drawVFOMiddleInput(ui_state_t* ui_state)
         {
             gfx_print(layout.line3_large_pos, layout.input_font, TEXT_ALIGN_CENTER,
                       color_white, ">Tx:%03lu.%04lu",
-                      (unsigned long)ui_state->new_rx_frequency/1000000,
-                      (unsigned long)(ui_state->new_rx_frequency%1000000)/100);
+                      (unsigned long)ui_state->new_tx_frequency/1000000,
+                      (unsigned long)(ui_state->new_tx_frequency%1000000)/100);
         }
         else
         {
@@ -310,6 +316,7 @@ void _ui_drawMainBottom()
                            yellow_fab413);
             break;
         case OPMODE_DMR:
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
             gfx_drawSmeterLevel(meter_pos,
                                 meter_width,
                                 meter_height,
@@ -318,6 +325,16 @@ void _ui_drawMainBottom()
                                 volume,
                                 true);
             break;
+#else
+            gfx_drawSmeterLevel(meter_pos,
+                                meter_width,
+                                meter_height,
+                                rssi,
+                                mic_level,
+                                volume,
+                                true);
+            break;
+#endif
         #ifdef CONFIG_M17
         case OPMODE_M17:
             gfx_drawSmeterLevel(meter_pos,

@@ -38,6 +38,14 @@ void ui_saveState();
 void ui_updateFSM(bool *sync_rtx);
 
 /**
+ * Advance background UI activities that should run without holding the
+ * shared state lock.
+ *
+ * @return true if GUI has been updated and a screen render is necessary.
+ */
+bool ui_idleTick(void);
+
+/**
  * This function redraws the GUI based on the last radio state.
  *
  * @return true if GUI has been updated and a screen render is necessary.

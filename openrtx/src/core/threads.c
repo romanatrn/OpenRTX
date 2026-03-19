@@ -63,6 +63,8 @@ void *ui_threadFunc(void *arg)
         ui_saveState();                     // Save local state copy
         pthread_mutex_unlock(&state_mutex); // Unlock r/w access to radio state
 
+        ui_idleTick();
+
         vp_tick();                           // continue playing voice prompts in progress if any.
 
         // If synchronization needed take mutex and update RTX configuration
@@ -70,6 +72,10 @@ void *ui_threadFunc(void *arg)
         {
             pthread_mutex_lock(&rtx_mutex);
             rtx_cfg.opMode      = state.channel.mode;
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
+            if(rtx_cfg.opMode == OPMODE_DMR)
+                rtx_cfg.opMode = OPMODE_M17;
+#endif
             rtx_cfg.bandwidth   = state.channel.bandwidth;
 
             /* Applies frequency offset */

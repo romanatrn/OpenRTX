@@ -122,7 +122,11 @@ void vp_announceRadioMode(const uint8_t mode, const vpQueueFlags_t flags)
     switch (mode)
     {
         case OPMODE_DMR:
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
+            vp_queueStringTableEntry(&currentLanguage->m17);
+#else
             vp_queueStringTableEntry(&currentLanguage->dmr);
+#endif
             break;
 
         case OPMODE_FM:
@@ -236,6 +240,10 @@ void vp_announceChannelSummary(const channel_t* channel,
                 break;
 
             case OPMODE_DMR:
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
+                vp_announceM17Info(channel, false, localFlags);
+                break;
+#else
             {
                 vp_announceContactWithIndex(channel->dmr.contact_index,
                                             localFlags);
@@ -247,8 +255,10 @@ void vp_announceChannelSummary(const channel_t* channel,
                 vp_announceColorCode(channel->dmr.rxColorCode,
                                      channel->dmr.txColorCode,
                                     (localFlags | vpqIncludeDescriptions));
-            }
+
                 break;
+            }
+#endif
         }
 
         addSilenceIfNeeded(localFlags);
