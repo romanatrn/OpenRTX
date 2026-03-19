@@ -34,13 +34,18 @@ enum uiScreen
     MODE_MEM,
     MENU_TOP,
     MENU_BANK,
+    MENU_BANK_ACTION,
+    MENU_BANK_RENAME,
     MENU_CHANNEL,
     MENU_CHANNEL_ACTION,
     MENU_CHANNEL_EDIT,
     MENU_CHANNEL_FREQ_INPUT,
     MENU_CHANNEL_RENAME,
     MENU_CHANNEL_DELETE,
+    MENU_CHANNEL_OVERWRITE,
     MENU_CONTACTS,
+    MENU_CONTACT_EDIT,
+    MENU_CONTACT_RENAME,
     MENU_GAMES,
     MENU_GPS,
     MENU_SETTINGS,
@@ -59,6 +64,7 @@ enum uiScreen
     SETTINGS_FM,
     SETTINGS_ACCESSIBILITY,
     SETTINGS_RESET2DEFAULTS,
+    SETTINGS_FACTORY_RESET,
     LOW_BAT
 };
 
@@ -100,6 +106,7 @@ enum settingsItems
     S_FM,
     S_ACCESSIBILITY,
     S_RESET2DEFAULTS,
+    S_FACTORY_RESET,
 };
 
 enum backupRestoreItems
@@ -117,6 +124,7 @@ enum channelEditItems
     CE_BANDWIDTH,
     CE_POWER,
     CE_ZONE,
+    CE_SCANLIST,
     CE_SAVE,
     CE_DELETE,
     CE_CANCEL
@@ -125,7 +133,26 @@ enum channelEditItems
 enum channelActionItems
 {
     CA_OPEN = 0,
-    CA_EDIT
+    CA_EDIT,
+    CA_COPY_TO_VFO,
+    CA_SCAN,
+    CA_SAVE_VFO_HERE,
+    CA_DELETE
+};
+
+enum bankActionItems
+{
+    BA_OPEN = 0,
+    BA_EDIT,
+    BA_DELETE
+};
+
+enum contactEditItems
+{
+    CT_RENAME = 0,
+    CT_SAVE,
+    CT_DELETE,
+    CT_CANCEL
 };
 
 enum displayItems
@@ -150,7 +177,10 @@ enum uiThemes
     THEME_AMBER,
     THEME_PHOSPHOR,
     THEME_CREAM,
-    THEME_PLASMA
+    THEME_PLASMA,
+    THEME_PALENIGHT,
+    THEME_NORD,
+    THEME_EVERFOREST
 };
 
 #ifdef CONFIG_GPS
@@ -184,13 +214,20 @@ enum settingsM17Items
     M17_CALLSIGN = 0,
     M17_METATEXT,
     M17_CAN,
-    M17_CAN_RX
+    M17_CAN_RX,
+    M17_ENCRYPTION,
+    M17_KEY_SLOT,
+    M17_KEY_1,
+    M17_KEY_2,
+    M17_KEY_3,
+    M17_KEY_4
 };
 
 enum settingsFMItems
 {
-    CTCSS_Tone,
-    CTCSS_Enabled
+    FM_RX_TONE,
+    FM_TX_TONE,
+    FM_TONE_MODE
 };
 
 /**
@@ -262,6 +299,7 @@ typedef struct ui_state_t
     size_t m17_meta_text_scroll_position;
     long long m17_meta_text_last_scroll_tick;
     char new_message[53];
+    char new_m17_key[M17_KEY_HEX_LEN + 1];
     bool edit_message;
 #ifdef CONFIG_RTC
     // Variables used for Time & Date input
@@ -274,8 +312,24 @@ typedef struct ui_state_t
     freq_t new_shift;
     uint16_t new_ppm;
     int8_t new_ppm_sign;
+    channel_t memory_channel_backup;
+    channel_t memory_channel_draft;
     int16_t memory_edit_index;
     int16_t channel_edit_zone;
+    uint8_t channel_edit_scanlist;
+    int16_t bank_edit_index;
+    int16_t contact_edit_index;
+    bool memory_edit_active;
+    bool memory_edit_new;
+    bool memory_edit_from_vfo;
+    long long scan_next_tick;
+    long long scan_resume_tick;
+    bool scan_was_open;
+    uint8_t gps_map_zoom;
+    bool gps_map_enabled;
+    bool gps_map_manual_pan;
+    int32_t gps_map_center_lat;
+    int32_t gps_map_center_lon;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)
@@ -285,6 +339,7 @@ typedef struct ui_state_t
 ui_state_t;
 
 extern layout_t layout;
+extern ui_state_t ui_state;
 extern state_t last_state;
 extern bool    macro_latched;
 extern const char *menu_items[];
@@ -297,8 +352,10 @@ extern const char *settings_fm_items[];
 extern const char * settings_accessibility_items[];
 extern const char *ui_theme_names[];
 extern const char *backup_restore_items[];
+extern const char *bank_action_items[];
 extern const char *channel_edit_items[];
 extern const char *channel_action_items[];
+extern const char *contact_edit_items[];
 extern const char *info_items[];
 extern const char *authors[];
 extern const uint8_t menu_num;
@@ -310,8 +367,10 @@ extern const uint8_t settings_m17_num;
 extern const uint8_t settings_fm_num;
 extern const uint8_t settings_accessibility_num;
 extern const uint8_t backup_restore_num;
+extern const uint8_t bank_action_num;
 extern const uint8_t channel_edit_num;
 extern const uint8_t channel_action_num;
+extern const uint8_t contact_edit_num;
 extern const uint8_t info_num;
 extern const uint8_t author_num;
 extern color_t color_black;

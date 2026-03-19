@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include "core/utils.h"
+#include "ui/gps_map.h"
 #include "ui/ui_default.h"
 #include "interfaces/nvmem.h"
 #include "interfaces/cps_io.h"
@@ -195,7 +196,8 @@ void _ui_drawMenuListValue(ui_state_t* ui_state, uint8_t selected,
         // Call function pointer to get current menu entry string
         result = (*getCurrentEntry)(entry_buf, sizeof(entry_buf), item+scroll);
         // Call function pointer to get current entry value string
-        result = (*getCurrentValue)(value_buf, sizeof(value_buf), item+scroll);
+        if(result == 0)
+            result = (*getCurrentValue)(value_buf, sizeof(value_buf), item+scroll);
         if(result != -1)
         {
             text_color = color_white;
@@ -453,6 +455,39 @@ int _ui_getM17ValueName(char *buf, uint8_t max_len, uint8_t index)
                                                            currentLanguage->on :
                                                            currentLanguage->off);
             break;
+
+        case M17_ENCRYPTION:
+            if(last_state.settings.m17_default_encryption == AES)
+                sniprintf(buf, max_len, "AES128");
+            else if(last_state.settings.m17_default_encryption == SCRAMBLER)
+                sniprintf(buf, max_len, "SCR %d",
+                          8 << last_state.settings.m17_default_enc_subtype);
+            else
+                sniprintf(buf, max_len, "Plain");
+            break;
+
+        case M17_KEY_SLOT:
+            if(last_state.settings.m17_default_key_index == 0)
+                sniprintf(buf, max_len, "Off");
+            else
+                sniprintf(buf, max_len, "%d", last_state.settings.m17_default_key_index);
+            break;
+
+        case M17_KEY_1:
+        case M17_KEY_2:
+        case M17_KEY_3:
+        case M17_KEY_4:
+        {
+            uint8_t slot = index - M17_KEY_1;
+            size_t keyLen = strnlen(last_state.settings.m17_keys[slot], M17_KEY_HEX_LEN);
+            if(keyLen == 0)
+                sniprintf(buf, max_len, "Unset");
+            else if(keyLen > 6)
+                sniprintf(buf, max_len, "%.6s*", last_state.settings.m17_keys[slot]);
+            else
+                sniprintf(buf, max_len, "%s", last_state.settings.m17_keys[slot]);
+            break;
+        }
     }
 
     return 0;
@@ -470,21 +505,30 @@ int _ui_getFMEntryName(char* buf, uint8_t max_len, uint8_t index)
 
 int _ui_getFMValueName(char* buf, uint8_t max_len, uint8_t index)
 {
-    if (index >= settings_fm_num)
+    if(index >= settings_fm_num)
         return -1;
 
-    switch (index) {
-        case CTCSS_Tone: {
+    switch(index)
+    {
+        case FM_RX_TONE:
+        {
+            uint16_t tone = ctcss_tone[last_state.channel.fm.rxTone];
+            sniprintf(buf, max_len, "%d.%d", (tone / 10), (tone % 10));
+            break;
+        }
+
+        case FM_TX_TONE:
+        {
             uint16_t tone = ctcss_tone[last_state.channel.fm.txTone];
             sniprintf(buf, max_len, "%d.%d", (tone / 10), (tone % 10));
             break;
         }
 
-        case CTCSS_Enabled:
+        case FM_TONE_MODE:
             sniprintf(buf, max_len, "%s",
-                    _ui_getToneEnabledString(last_state.channel.fm.txToneEn,
-                                             last_state.channel.fm.rxToneEn,
-                                             false));
+                      _ui_getToneEnabledString(last_state.channel.fm.txToneEn,
+                                               last_state.channel.fm.rxToneEn,
+                                               false));
             break;
     }
 
@@ -605,26 +649,20 @@ int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getBankName(char *buf, uint8_t max_len, uint8_t index)
 {
-    int result = 0;
-    // First bank "All channels" is not read from flash
-    if(index == 0)
-    {
-        strncpy(buf, currentLanguage->allChannels, max_len);
-    }
-    else
-    {
-        bankHdr_t bank;
-        result = cps_readBankHeader(&bank, index - 1);
-        if(result != -1)
-            sniprintf(buf, max_len, "%s", bank.name);
-    }
+    int result;
+    bankHdr_t bank;
+
+    result = cps_readBankHeader(&bank, index);
+    if(result != -1)
+        sniprintf(buf, max_len, "%s", bank.name);
+
     return result;
 }
 
 int _ui_getChannelName(char *buf, uint8_t max_len, uint8_t index)
 {
     channel_t channel;
-    int result = cps_readChannel(&channel, index);
+    int result = cps_readChannel(&channel, index + 1);
     if(result != -1)
         sniprintf(buf, max_len, "%s", channel.name);
     return result;
@@ -641,6 +679,23 @@ int _ui_getChannelMenuName(char *buf, uint8_t max_len, uint8_t index)
     return _ui_getChannelName(buf, max_len, index - 1);
 }
 
+int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index == 0)
+    {
+        sniprintf(buf, max_len, "All Channels");
+        return 0;
+    }
+
+    if(index == 1)
+    {
+        sniprintf(buf, max_len, "Add New");
+        return 0;
+    }
+
+    return _ui_getBankName(buf, max_len, index - 2);
+}
+
 int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
 {
     if(index >= channel_edit_num) return -1;
@@ -650,40 +705,110 @@ int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getChannelActionName(char *buf, uint8_t max_len, uint8_t index)
 {
-    if(index >= channel_action_num) return -1;
-    sniprintf(buf, max_len, "%s", channel_action_items[index]);
+    const uint8_t channel_actions = (ui_state.last_main_state == MAIN_VFO)
+                                  ? channel_action_num
+                                  : (channel_action_num - 1);
+    uint8_t item_index = index;
+
+    if(index >= channel_actions) return -1;
+    if((ui_state.last_main_state != MAIN_VFO) && (index >= CA_SAVE_VFO_HERE))
+        item_index++;
+
+    if(item_index == CA_SCAN)
+    {
+        const bool sameChannel = (last_state.tuner_mode == CHSCAN)
+                              && (last_state.channel_index == ui_state.memory_edit_index);
+        sniprintf(buf, max_len, "%s", sameChannel ? "Stop Scan" : "Scan");
+        return 0;
+    }
+
+    sniprintf(buf, max_len, "%s", channel_action_items[item_index]);
     return 0;
+}
+
+int _ui_getBankActionName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= bank_action_num) return -1;
+    sniprintf(buf, max_len, "%s", bank_action_items[index]);
+    return 0;
+}
+
+int _ui_getContactEditName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= contact_edit_num) return -1;
+    sniprintf(buf, max_len, "%s", contact_edit_items[index]);
+    return 0;
+}
+
+int _ui_getContactEditValueName(char *buf, uint8_t max_len, uint8_t index)
+{
+    switch(index)
+    {
+        case CT_RENAME:
+            sniprintf(buf, max_len, "%s", ui_state.new_channel_name);
+            return 0;
+        default:
+            buf[0] = '\0';
+            return 0;
+    }
 }
 
 int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
 {
+    const channel_t *channel = ui_state.memory_edit_active
+                             ? &ui_state.memory_channel_draft
+                             : &last_state.channel;
+
     if(index >= channel_edit_num) return -1;
 
     switch(index)
     {
         case CE_RENAME:
-            sniprintf(buf, max_len, "%s", last_state.channel.name);
+            sniprintf(buf, max_len, "%s", channel->name);
             return 0;
         case CE_RX_FREQ:
             sniprintf(buf, max_len, "%lu.%05lu",
-                      (unsigned long) (last_state.channel.rx_frequency / 1000000),
-                      (unsigned long) ((last_state.channel.rx_frequency % 1000000) / 10));
+                      (unsigned long) (channel->rx_frequency / 1000000),
+                      (unsigned long) ((channel->rx_frequency % 1000000) / 10));
             return 0;
         case CE_TX_FREQ:
             sniprintf(buf, max_len, "%lu.%05lu",
-                      (unsigned long) (last_state.channel.tx_frequency / 1000000),
-                      (unsigned long) ((last_state.channel.tx_frequency % 1000000) / 10));
+                      (unsigned long) (channel->tx_frequency / 1000000),
+                      (unsigned long) ((channel->tx_frequency % 1000000) / 10));
             return 0;
         case CE_MODE:
-            if(last_state.channel.mode == OPMODE_M17)
+            if(channel->mode == OPMODE_M17)
                 sniprintf(buf, max_len, "M17");
             else
                 sniprintf(buf, max_len, "FM");
             return 0;
+        case CE_BANDWIDTH:
+            sniprintf(buf, max_len, "%s", (channel->bandwidth == BW_12_5) ? "12.5 kHz" : "25 kHz");
+            return 0;
         case CE_POWER:
             sniprintf(buf, max_len, "%lu.%01luW",
-                      (unsigned long) (last_state.channel.power / 1000),
-                      (unsigned long) ((last_state.channel.power % 1000) / 100));
+                      (unsigned long) (channel->power / 1000),
+                      (unsigned long) ((channel->power % 1000) / 100));
+            return 0;
+        case CE_ZONE:
+            if(ui_state.channel_edit_zone < 0)
+            {
+                sniprintf(buf, max_len, "None");
+            }
+            else
+            {
+                bankHdr_t bank = {0};
+                if(cps_readBankHeader(&bank, ui_state.channel_edit_zone) != -1)
+                    sniprintf(buf, max_len, "%s", bank.name);
+                else
+                    sniprintf(buf, max_len, "None");
+            }
+            return 0;
+        case CE_SCANLIST:
+            if(ui_state.channel_edit_scanlist == 0)
+                sniprintf(buf, max_len, "None");
+            else
+                sniprintf(buf, max_len, "List %u", ui_state.channel_edit_scanlist);
             return 0;
         default:
             buf[0] = '\0';
@@ -694,10 +819,21 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
 int _ui_getContactName(char *buf, uint8_t max_len, uint8_t index)
 {
     contact_t contact;
-    int result = cps_readContact(&contact, index);
+    int result = cps_readContact(&contact, index + 1);
     if(result != -1)
         sniprintf(buf, max_len, "%s", contact.name);
     return result;
+}
+
+int _ui_getContactMenuName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index == 0)
+    {
+        sniprintf(buf, max_len, "Add New");
+        return 0;
+    }
+
+    return _ui_getContactName(buf, max_len, index - 1);
 }
 
 void _ui_drawMenuTop(ui_state_t* ui_state)
@@ -717,7 +853,27 @@ void _ui_drawMenuBank(ui_state_t* ui_state)
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->banks);
     // Print bank entries
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getBankName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getBankMenuName);
+}
+
+void _ui_drawMenuBankAction(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Zone Menu");
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getBankActionName);
+}
+
+void _ui_drawMenuBankRename(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Zone Name");
+
+    gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
 }
 
 void _ui_drawMenuChannel(ui_state_t* ui_state)
@@ -780,6 +936,23 @@ void _ui_drawMenuChannelDelete(ui_state_t* ui_state)
 
     gfx_printLine(1, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                   layout.horizontal_pad, layout.menu_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
+
+    gfx_printLine(2, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.message_font,
+                  TEXT_ALIGN_CENTER, color_white,
+                  "%s", ui_state->edit_mode ? currentLanguage->pressEnterTwice : "Press Enter");
+}
+
+void _ui_drawMenuChannelOverwrite(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Overwrite");
+
+    gfx_printLine(1, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.menu_font,
                   TEXT_ALIGN_CENTER, color_white, "%s", last_state.channel.name);
 
     gfx_printLine(2, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
@@ -795,7 +968,30 @@ void _ui_drawMenuContacts(ui_state_t* ui_state)
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->contacts);
     // Print contact entries
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getContactName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getContactMenuName);
+}
+
+void _ui_drawMenuContactEdit(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Edit Contact");
+    _ui_drawMenuListValue(ui_state,
+                          ui_state->menu_selected,
+                          _ui_getContactEditName,
+                          _ui_getContactEditValueName);
+}
+
+void _ui_drawMenuContactRename(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Contact Name");
+
+    gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
 }
 
 #ifdef CONFIG_GPS
@@ -803,6 +999,47 @@ void _ui_drawMenuGPS()
 {
     char *fix_buf, *type_buf;
     _ui_clearScreen();
+
+    if(ui_state.gps_map_enabled)
+    {
+        point_t map_pos = {layout.horizontal_pad, layout.top_h + 2};
+        uint16_t map_height = CONFIG_SCREEN_HEIGHT - layout.top_h - layout.bottom_h - 4;
+
+        gps_map_updateTrack(&last_state.gps_data);
+
+        gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                  color_white, "GPS Map");
+        gps_map_draw(map_pos,
+                     CONFIG_SCREEN_WIDTH - (2 * layout.horizontal_pad),
+                     map_height,
+                     &last_state.gps_data,
+                     ui_state.gps_map_zoom,
+                     ui_state.gps_map_manual_pan,
+                     ui_state.gps_map_center_lat,
+                     ui_state.gps_map_center_lon,
+                     color_grey,
+                     color_white,
+                     yellow_fab413);
+
+        if(!last_state.gpsDetected)
+            gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                      color_white, currentLanguage->noGps);
+        else if(!last_state.settings.gps_enabled)
+            gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                      color_white, currentLanguage->gpsOff);
+        else if(!gps_map_hasFix(&last_state.gps_data))
+            gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                      color_white, currentLanguage->noFix);
+
+        gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_LEFT,
+                  color_white, "%s", gps_map_getZoomLabel(ui_state.gps_map_zoom));
+        gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
+                  color_white, "ENT=Info");
+        gfx_print((point_t){layout.horizontal_pad + 2, (int16_t)(layout.top_h + 2)},
+                  FONT_SIZE_5PT, TEXT_ALIGN_LEFT, color_white, "2/4/6/8 Pan");
+        return;
+    }
+
     // Print "GPS" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->gps);
@@ -902,6 +1139,8 @@ void _ui_drawMenuGPS()
                      CONFIG_SCREEN_HEIGHT / 3,
                      last_state.gps_data.satellites,
                      last_state.gps_data.active_sats);
+    gfx_print(layout.top_pos, FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
+              color_white, "ENT=Map");
 }
 #endif
 
@@ -1142,6 +1381,18 @@ void _ui_drawSettingsM17(ui_state_t* ui_state)
                           layout.horizontal_pad, layout.message_font,
                           TEXT_ALIGN_CENTER, color_white, ui_state->new_message);
     }
+    else if((ui_state->edit_mode) && (ui_state->menu_selected >= M17_KEY_1)
+            && (ui_state->menu_selected <= M17_KEY_4))
+    {
+        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
+        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
+        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
+                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
+        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
+        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                      layout.horizontal_pad, layout.message_font,
+                      TEXT_ALIGN_CENTER, color_white, ui_state->new_m17_key);
+    }
     else
     {
         _ui_drawMenuListValue(ui_state, ui_state->menu_selected, _ui_getM17EntryName,
@@ -1188,6 +1439,34 @@ void _ui_drawSettingsReset2Defaults(ui_state_t* ui_state)
     gfx_printLine(1, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                   layout.horizontal_pad, layout.top_font,
                   TEXT_ALIGN_CENTER, textcolor, currentLanguage->toReset);
+    gfx_printLine(2, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.top_font,
+                  TEXT_ALIGN_CENTER, textcolor, currentLanguage->pressEnterTwice);
+
+    if((getTick() - lastDraw) > 1000)
+    {
+        drawcnt++;
+        lastDraw = getTick();
+    }
+
+    drawcnt++;
+}
+
+void _ui_drawSettingsFactoryReset(ui_state_t* ui_state)
+{
+    (void) ui_state;
+
+    static int drawcnt = 0;
+    static long long lastDraw = 0;
+
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Factory Reset");
+
+    color_t textcolor = drawcnt % 2 == 0 ? color_white : yellow_fab413;
+    gfx_printLine(1, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.top_font,
+                  TEXT_ALIGN_CENTER, textcolor, "Codeplug only");
     gfx_printLine(2, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
                   layout.horizontal_pad, layout.top_font,
                   TEXT_ALIGN_CENTER, textcolor, currentLanguage->pressEnterTwice);
@@ -1363,7 +1642,7 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
     if (last_state.channel.mode == OPMODE_FM)
     {
         char bw_str[12] = { 0 };
-        switch (last_state.channel.bandwidth)
+        switch(last_state.channel.bandwidth)
         {
             case BW_12_5:
                 sniprintf(bw_str, 12, "  BW12.5");
@@ -1391,7 +1670,6 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER,
               yellow_fab413, "5");
 
-    char mode_str[12] = "";
     switch(last_state.channel.mode)
     {
         case OPMODE_FM:
@@ -1411,17 +1689,12 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
 #endif
     }
 
-    gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER,
-              color_white, mode_str);
-
 #if defined(CONFIG_UI_NO_KEYBOARD)
         if (ui_state->macro_menu_selected == 5)
 #endif // CONFIG_UI_NO_KEYBOARD
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_RIGHT,
               yellow_fab413, "6        ");
 
-    // Compute x.y format for TX power avoiding to pull in floating point math.
-    // Remember that power is expressed in mW!
     unsigned int power_int = (last_state.channel.power / 1000);
     unsigned int power_dec = (last_state.channel.power % 1000) / 100;
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_RIGHT,

@@ -91,6 +91,7 @@ const char* _ui_getToneEnabledString(bool tone_tx_enable, bool tone_rx_enable,
 void _ui_drawModeInfo(ui_state_t* ui_state)
 {
     char bw_str[8] = { 0 };
+    char status_str[8] = "";
 
     switch(last_state.channel.mode)
     {
@@ -105,18 +106,28 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
             // Get encdec string
             bool tone_tx_enable = last_state.channel.fm.txToneEn;
             bool tone_rx_enable = last_state.channel.fm.rxToneEn;
+            if(last_state.fm_monitor)
+                strcat(status_str, " M");
+            if(last_state.fm_reverse)
+                strcat(status_str, " R");
+            if(last_state.tuner_mode == SCAN)
+                strcat(status_str, " VS");
+            else if(last_state.tuner_mode == CHSCAN)
+                strcat(status_str, " CS");
+
             // Print Bandwidth, Tone and encdec info
             if (tone_tx_enable || tone_rx_enable)
             {
                 uint16_t tone = ctcss_tone[last_state.channel.fm.txTone];
                 gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-                          color_white, "%s %d.%d %s", bw_str, (tone / 10),
-                          (tone % 10), _ui_getToneEnabledString(tone_tx_enable, tone_rx_enable, true));
+                          color_white, "%s %d.%d %s%s", bw_str, (tone / 10),
+                          (tone % 10), _ui_getToneEnabledString(tone_tx_enable, tone_rx_enable, true),
+                          status_str);
             }
             else
             {
                 gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-                          color_white, "%s", bw_str );
+                          color_white, "%s%s", bw_str, status_str);
             }
             break;
 
