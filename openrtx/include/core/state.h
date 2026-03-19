@@ -99,6 +99,13 @@ void state_terminate();
 void state_task();
 
 /**
+ * Persist current settings immediately and refresh dirty tracking.
+ *
+ * @return 0 on success, -1 on failure.
+ */
+int state_saveSettings();
+
+/**
  * Reset the fields of radio state containing user settings and VFO channel.
  */
 void state_resetSettingsAndVfo();
