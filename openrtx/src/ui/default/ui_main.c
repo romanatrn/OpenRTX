@@ -334,7 +334,7 @@ void _ui_drawMainBottom()
 
 void _ui_drawMainVFO(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     _ui_drawMainTop(ui_state);
     _ui_drawModeInfo(ui_state);
 
@@ -350,7 +350,7 @@ void _ui_drawMainVFO(ui_state_t* ui_state)
 
 void _ui_drawMainVFOInput(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     _ui_drawMainTop(ui_state);
     _ui_drawVFOMiddleInput(ui_state);
     _ui_drawMainBottom();
@@ -358,7 +358,7 @@ void _ui_drawMainVFOInput(ui_state_t* ui_state)
 
 void _ui_drawMainMEM(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     _ui_drawMainTop(ui_state);
     _ui_drawModeInfo(ui_state);
 

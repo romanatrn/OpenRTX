@@ -45,7 +45,7 @@ typedef struct
     uint8_t vpLevel         : 3,  // Voice prompt level
             vpPhoneticSpell : 1,  // Phonetic spell enabled
             macroMenuLatch  : 1,  // Automatic latch of macro menu
-            _reserved       : 3;
+            theme           : 3;  // UI color theme
     bool    m17_can_rx;           // Check M17 CAN on RX
     char    m17_dest[10];         // M17 destination
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage
@@ -58,29 +58,29 @@ __attribute__((packed)) settings_t;
 
 static const settings_t default_settings =
 {
-    100,                          // Brightness
+    100,
 #ifdef CONFIG_SCREEN_CONTRAST
-    CONFIG_DEFAULT_CONTRAST,      // Contrast
+    CONFIG_DEFAULT_CONTRAST,
 #else
-    255,                          // Contrast
+    255,
 #endif
-    4,                            // Squelch level, 4 = S3
-    0,                            // Vox level
-    0,                            // UTC Timezone
-    false,                        // GPS enabled
-    "",                           // Empty callsign
-    TIMER_30S,                    // 30 seconds
-    0,                            // M17 CAN
-    0,                            // Voice prompts off
-    0,                            // Phonetic spell off
-    1,                            // Automatic latch of macro menu enabled
-    0,                            // not used
-    false,                        // Check M17 CAN on RX
-    "",                           // Empty M17 destination
-    false,                        // Display battery icon
-    false,                        // Update RTC with GPS
-    "OpenRTX",                    // Default M17 meta text
-    0,                            // Frequency offset
+    4,
+    0,
+    0,
+    false,
+    "",
+    TIMER_30S,
+    0,
+    0,
+    0,
+    1,
+    0,
+    false,
+    "",
+    false,
+    false,
+    "OpenRTX",
+    0,
 };
 
 #endif /* SETTINGS_H */

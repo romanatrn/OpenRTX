@@ -148,7 +148,8 @@ const char *display_items[] =
     "Contrast",
 #endif
     "Timer",
-    "Battery Icon"
+    "Battery Icon",
+    "Theme"
 };
 
 #ifdef CONFIG_GPS
@@ -285,10 +286,42 @@ const uint8_t channel_edit_num = sizeof(channel_edit_items)/sizeof(channel_edit_
 const uint8_t info_num = sizeof(info_items)/sizeof(info_items[0]);
 const uint8_t author_num = sizeof(authors)/sizeof(authors[0]);
 
-const color_t color_black = {0, 0, 0, 255};
-const color_t color_grey = {60, 60, 60, 255};
-const color_t color_white = {255, 255, 255, 255};
-const color_t yellow_fab413 = {250, 180, 19, 255};
+typedef struct
+{
+    color_t background;
+    color_t text;
+    color_t border;
+    color_t accent;
+} ui_theme_colors_t;
+
+static const ui_theme_colors_t ui_theme_colors[] =
+{
+    {{0, 0, 0, 255},    {255, 255, 255, 255}, {60, 60, 60, 255},   {250, 180, 19, 255}},
+    {{16, 24, 34, 255}, {235, 247, 255, 255}, {76, 112, 138, 255}, {92, 194, 230, 255}},
+    {{16, 24, 18, 255}, {235, 255, 235, 255}, {74, 110, 80, 255},  {142, 216, 150, 255}},
+    {{42, 18, 18, 255}, {255, 244, 232, 255}, {148, 84, 56, 255},  {255, 124, 64, 255}},
+    {{52, 28, 0, 255},  {255, 214, 150, 255}, {164, 96, 24, 255},  {255, 166, 36, 255}},
+    {{6, 26, 6, 255},   {170, 255, 170, 255}, {54, 118, 54, 255},  {118, 255, 118, 255}},
+    {{50, 38, 24, 255}, {255, 244, 220, 255}, {150, 118, 72, 255}, {255, 198, 112, 255}},
+    {{30, 8, 38, 255},  {244, 226, 255, 255}, {100, 58, 128, 255}, {255, 84, 164, 255}},
+};
+
+const char *ui_theme_names[] =
+{
+    "Classic",
+    "Ocean",
+    "Forest",
+    "Sunset",
+    "Amber CRT",
+    "Green CRT",
+    "Cream",
+    "Plasma"
+};
+
+color_t color_black = {0, 0, 0, 255};
+color_t color_grey = {60, 60, 60, 255};
+color_t color_white = {255, 255, 255, 255};
+color_t yellow_fab413 = {250, 180, 19, 255};
 
 layout_t layout;
 state_t last_state;
@@ -306,6 +339,35 @@ static long long last_event_tick = 0;
 static uint8_t evQueue_rdPos;
 static uint8_t evQueue_wrPos;
 static event_t evQueue[MAX_NUM_EVENTS];
+
+
+static void _ui_applyTheme(uint8_t theme)
+{
+    const ui_theme_colors_t *palette = &ui_theme_colors[theme % (sizeof(ui_theme_colors) / sizeof(ui_theme_colors[0]))];
+
+    color_black = palette->background;
+    color_white = palette->text;
+    color_grey = palette->border;
+    yellow_fab413 = palette->accent;
+}
+
+static void _ui_changeTheme(int8_t variation)
+{
+    uint8_t count = sizeof(ui_theme_names) / sizeof(ui_theme_names[0]);
+    state.settings.theme = (state.settings.theme + count + variation) % count;
+    _ui_applyTheme(state.settings.theme);
+}
+
+void _ui_clearScreen()
+{
+    gfx_fillScreen(color_black);
+
+    if(CONFIG_SCREEN_HEIGHT > 63)
+    {
+        gfx_drawHLine(0, 1, color_grey);
+        gfx_drawHLine(CONFIG_SCREEN_HEIGHT - 1, 1, color_grey);
+    }
+}
 
 
 static void _ui_calculateLayout(layout_t *layout)
@@ -2408,6 +2470,9 @@ void ui_updateFSM(bool *sync_rtx)
                         case D_BATTERY:
                             state.settings.showBatteryIcon = !state.settings.showBatteryIcon;
                             break;
+                        case D_THEME:
+                            _ui_changeTheme(-1);
+                            break;
                         default:
                             state.ui_screen = SETTINGS_DISPLAY;
                     }
@@ -2434,6 +2499,9 @@ void ui_updateFSM(bool *sync_rtx)
                         case D_TIMER:
                             _ui_changeTimer(+1);
                             vp_announceDisplayTimer();
+                            break;
+                        case D_THEME:
+                            _ui_changeTheme(+1);
                             break;
                         default:
                             state.ui_screen = SETTINGS_DISPLAY;
@@ -3000,6 +3068,8 @@ bool ui_updateGUI()
 {
     if(redraw_needed == false)
         return false;
+
+    _ui_applyTheme(last_state.settings.theme);
 
     if(!layout_ready)
     {
