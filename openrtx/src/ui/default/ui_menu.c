@@ -626,6 +626,38 @@ int _ui_getChannelName(char *buf, uint8_t max_len, uint8_t index)
     return result;
 }
 
+int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= channel_edit_num) return -1;
+    sniprintf(buf, max_len, "%s", channel_edit_items[index]);
+    return 0;
+}
+
+int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= channel_edit_num) return -1;
+
+    switch(index)
+    {
+        case CE_RENAME:
+            sniprintf(buf, max_len, "%s", last_state.channel.name);
+            return 0;
+        case CE_RX_FREQ:
+            sniprintf(buf, max_len, "%lu.%05lu",
+                      (unsigned long) (last_state.channel.rx_frequency / 1000000),
+                      (unsigned long) ((last_state.channel.rx_frequency % 1000000) / 10));
+            return 0;
+        case CE_TX_FREQ:
+            sniprintf(buf, max_len, "%lu.%05lu",
+                      (unsigned long) (last_state.channel.tx_frequency / 1000000),
+                      (unsigned long) ((last_state.channel.tx_frequency % 1000000) / 10));
+            return 0;
+        default:
+            buf[0] = '\0';
+            return 0;
+    }
+}
+
 int _ui_getContactName(char *buf, uint8_t max_len, uint8_t index)
 {
     contact_t contact;
@@ -663,6 +695,46 @@ void _ui_drawMenuChannel(ui_state_t* ui_state)
               color_white, currentLanguage->channels);
     // Print channel entries
     _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelName);
+}
+
+void _ui_drawMenuChannelEdit(ui_state_t* ui_state)
+{
+    gfx_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Edit Channel");
+    _ui_drawMenuListValue(ui_state,
+                          ui_state->menu_selected,
+                          _ui_getChannelEditName,
+                          _ui_getChannelEditValueName);
+}
+
+void _ui_drawMenuChannelRename(ui_state_t* ui_state)
+{
+    gfx_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Rename");
+
+    gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
+}
+
+void _ui_drawMenuChannelDelete(ui_state_t* ui_state)
+{
+    gfx_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Delete");
+
+    gfx_printLine(1, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.menu_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", last_state.channel.name);
+
+    gfx_printLine(2, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.message_font,
+                  TEXT_ALIGN_CENTER, color_white,
+                  "%s", ui_state->edit_mode ? currentLanguage->pressEnterTwice : "Press Enter");
 }
 
 void _ui_drawMenuContacts(ui_state_t* ui_state)

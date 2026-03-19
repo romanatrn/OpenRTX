@@ -80,6 +80,9 @@ extern void _ui_drawMainMEM(ui_state_t* ui_state);
 extern void _ui_drawMenuTop(ui_state_t* ui_state);
 extern void _ui_drawMenuBank(ui_state_t* ui_state);
 extern void _ui_drawMenuChannel(ui_state_t* ui_state);
+extern void _ui_drawMenuChannelEdit(ui_state_t* ui_state);
+extern void _ui_drawMenuChannelRename(ui_state_t* ui_state);
+extern void _ui_drawMenuChannelDelete(ui_state_t* ui_state);
 extern void _ui_drawMenuContacts(ui_state_t* ui_state);
 #ifdef CONFIG_GPS
 extern void _ui_drawMenuGPS();
@@ -194,6 +197,16 @@ const char *backup_restore_items[] =
     "Restore"
 };
 
+const char *channel_edit_items[] =
+{
+    "Rename",
+    "RX Freq",
+    "TX Freq",
+    "Save",
+    "Delete",
+    "Cancel"
+};
+
 const char *info_items[] =
 {
     "",
@@ -268,6 +281,7 @@ const uint8_t settings_m17_num = sizeof(settings_m17_items)/sizeof(settings_m17_
 const uint8_t settings_fm_num = sizeof(settings_fm_items) / sizeof(settings_fm_items[0]);
 const uint8_t settings_accessibility_num = sizeof(settings_accessibility_items)/sizeof(settings_accessibility_items[0]);
 const uint8_t backup_restore_num = sizeof(backup_restore_items)/sizeof(backup_restore_items[0]);
+const uint8_t channel_edit_num = sizeof(channel_edit_items)/sizeof(channel_edit_items[0]);
 const uint8_t info_num = sizeof(info_items)/sizeof(info_items[0]);
 const uint8_t author_num = sizeof(authors)/sizeof(authors[0]);
 
@@ -283,6 +297,7 @@ static ui_state_t ui_state;
 static bool macro_menu = false;
 static bool layout_ready = false;
 static bool redraw_needed = true;
+static settings_t last_saved_settings;
 
 static bool standby = false;
 static long long last_event_tick = 0;
@@ -625,6 +640,76 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
     }
 
     return result;
+}
+
+static uint16_t _ui_getChannelCount()
+{
+    channel_t channel;
+    uint16_t index = 0;
+
+    while((index < UINT16_MAX) && (cps_readChannel(&channel, index) != -1))
+        index++;
+
+    return index;
+}
+
+static void _ui_announceChannelStored(const uint16_t channel_index)
+{
+    if(state.settings.vpLevel < vpLow)
+        return;
+
+    vp_flush();
+    vp_queuePrompt(PROMPT_CHANNEL);
+    vp_queueInteger(channel_index + 1);
+    vp_play();
+}
+
+static void _ui_announceStoreError()
+{
+    if(state.settings.vpLevel < vpLow)
+        return;
+
+    vp_flush();
+    vp_queueStringTableEntry(&currentLanguage->error);
+    vp_play();
+}
+
+static void _ui_fsm_storeVfoToNewChannel(bool *sync_rtx)
+{
+    channel_t new_channel = state.channel;
+    uint16_t channel_index = _ui_getChannelCount();
+
+    if(new_channel.name[0] == '\0')
+        snprintf(new_channel.name, sizeof(new_channel.name), "CH-%04u", channel_index + 1);
+
+    if(cps_insertChannel(new_channel, channel_index) == -1)
+    {
+        _ui_announceStoreError();
+        return;
+    }
+
+    state.vfo_channel = state.channel;
+    state.bank_enabled = false;
+
+    if(_ui_fsm_loadChannel(channel_index, sync_rtx) == -1)
+    {
+        _ui_announceStoreError();
+        return;
+    }
+
+    state.ui_screen = MAIN_MEM;
+    _ui_announceChannelStored(state.channel_index);
+}
+
+static void _ui_fsm_storeCurrentMemoryChannel()
+{
+    if(cps_writeChannel(state.channel, state.channel_index) == -1)
+    {
+        _ui_announceStoreError();
+        return;
+    }
+
+    _ui_announceChannelStored(state.channel_index);
 }
 
 static void _ui_fsm_confirmVFOInput(bool *sync_rtx)
@@ -1112,6 +1197,28 @@ static void _ui_textInputReset(char *buf)
     buf[0] = '_';
 }
 
+static void _ui_textInputPreset(char *buf, uint8_t max_len, const char *initial)
+{
+    ui_state.input_number = 0;
+    ui_state.input_position = 0;
+    ui_state.input_set = 0;
+    ui_state.last_keypress = 0;
+
+    memset(buf, 0, max_len + 1);
+    strncpy(buf, initial, max_len);
+
+    uint8_t len = strnlen(buf, max_len);
+    if(len < max_len)
+    {
+        buf[len] = '_';
+        ui_state.input_position = len;
+    }
+    else if(max_len > 0)
+    {
+        ui_state.input_position = max_len - 1;
+    }
+}
+
 static void _ui_textInputKeypad(char *buf, uint8_t max_len, kbd_msg_t msg,
                          bool callsign)
 {
@@ -1263,6 +1370,15 @@ static void _ui_numberInputDel(uint32_t *num)
     ui_state.input_set = 0;
 }
 
+static void _ui_persistSettingsIfNeeded()
+{
+    if(memcmp(&state.settings, &last_saved_settings, sizeof(settings_t)) != 0)
+    {
+        if(nvm_writeSettings(&state.settings) == 0)
+            last_saved_settings = state.settings;
+    }
+}
+
 void ui_init()
 {
     last_event_tick = getTick();
@@ -1273,6 +1389,8 @@ void ui_init()
     // This syntax is called compound literal
     // https://stackoverflow.com/questions/6891720/initialize-reset-struct-to-zero-null
     ui_state = (const struct ui_state_t){ 0 };
+    ui_state.memory_edit_index = -1;
+    last_saved_settings = state.settings;
 }
 
 void ui_drawSplashScreen()
@@ -1521,11 +1639,18 @@ void ui_updateFSM(bool *sync_rtx)
                 {
                     if(msg.keys & KEY_ENTER)
                     {
-                        // Save current main state
-                        ui_state.last_main_state = state.ui_screen;
-                        // Open Menu
-                        state.ui_screen = MENU_TOP;
-                        // The selected item will be announced when the item is first selected.
+                        if(msg.long_press)
+                        {
+                            _ui_fsm_storeVfoToNewChannel(sync_rtx);
+                        }
+                        else
+                        {
+                            // Save current main state
+                            ui_state.last_main_state = state.ui_screen;
+                            // Open Menu
+                            state.ui_screen = MENU_TOP;
+                            // The selected item will be announced when the item is first selected.
+                        }
                     }
                     else if(msg.keys & KEY_ESC)
                     {
@@ -1726,10 +1851,18 @@ void ui_updateFSM(bool *sync_rtx)
                 {
                     if(msg.keys & KEY_ENTER)
                     {
-                        // Save current main state
-                        ui_state.last_main_state = state.ui_screen;
-                        // Open Menu
-                        state.ui_screen = MENU_TOP;
+                        if(msg.long_press)
+                        {
+                            state.ui_screen = MENU_CHANNEL_EDIT;
+                            ui_state.menu_selected = 0;
+                        }
+                        else
+                        {
+                            // Save current main state
+                            ui_state.last_main_state = state.ui_screen;
+                            // Open Menu
+                            state.ui_screen = MENU_TOP;
+                        }
                     }
                     else if(msg.keys & KEY_ESC)
                     {
@@ -1791,6 +1924,166 @@ void ui_updateFSM(bool *sync_rtx)
                                                state.channel_index+1,
                                                queueFlags);
                     }
+                }
+                break;
+            case MENU_CHANNEL_EDIT:
+                if(ui_state.edit_mode)
+                {
+                    switch(ui_state.menu_selected)
+                    {
+                        case CE_RX_FREQ:
+                            if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                if(_ui_freq_check_limits(state.channel.rx_frequency + freq_steps[state.step_index]))
+                                {
+                                    state.channel.rx_frequency += freq_steps[state.step_index];
+                                    *sync_rtx = true;
+                                }
+                            }
+                            else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
+                                if(_ui_freq_check_limits(state.channel.rx_frequency - freq_steps[state.step_index]))
+                                {
+                                    state.channel.rx_frequency -= freq_steps[state.step_index];
+                                    *sync_rtx = true;
+                                }
+                            }
+                            else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            break;
+                        case CE_TX_FREQ:
+                            if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
+                                if(_ui_freq_check_limits(state.channel.tx_frequency + freq_steps[state.step_index]))
+                                {
+                                    state.channel.tx_frequency += freq_steps[state.step_index];
+                                    *sync_rtx = true;
+                                }
+                            }
+                            else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
+                                if(_ui_freq_check_limits(state.channel.tx_frequency - freq_steps[state.step_index]))
+                                {
+                                    state.channel.tx_frequency -= freq_steps[state.step_index];
+                                    *sync_rtx = true;
+                                }
+                            }
+                            else if(msg.keys & KEY_ENTER || msg.keys & KEY_ESC)
+                            {
+                                ui_state.edit_mode = false;
+                            }
+                            break;
+                        default:
+                            ui_state.edit_mode = false;
+                            break;
+                    }
+                }
+                else if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                    _ui_menuUp(channel_edit_num);
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                    _ui_menuDown(channel_edit_num);
+                else if(msg.keys & KEY_ENTER)
+                {
+                    switch(ui_state.menu_selected)
+                    {
+                        case CE_RENAME:
+                            _ui_textInputPreset(ui_state.new_channel_name, 15,
+                                                state.channel.name);
+                            state.ui_screen = MENU_CHANNEL_RENAME;
+                            break;
+                        case CE_RX_FREQ:
+                        case CE_TX_FREQ:
+                            ui_state.edit_mode = true;
+                            break;
+                        case CE_SAVE:
+                            _ui_fsm_storeCurrentMemoryChannel();
+                            state.ui_screen = MAIN_MEM;
+                            break;
+                        case CE_DELETE:
+                            ui_state.edit_mode = false;
+                            state.ui_screen = MENU_CHANNEL_DELETE;
+                            break;
+                        case CE_CANCEL:
+                            _ui_fsm_loadChannel(state.channel_index, sync_rtx);
+                            state.ui_screen = MAIN_MEM;
+                            break;
+                    }
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    _ui_fsm_loadChannel(state.channel_index, sync_rtx);
+                    state.ui_screen = MAIN_MEM;
+                }
+                break;
+            case MENU_CHANNEL_RENAME:
+                if(msg.keys & KEY_ENTER)
+                {
+                    if(ui_state.new_channel_name[ui_state.input_position] == '_')
+                        ui_state.new_channel_name[ui_state.input_position] = '\0';
+                    else
+                        _ui_textInputConfirm(ui_state.new_channel_name);
+
+                    if(ui_state.new_channel_name[0] != '\0')
+                        strncpy(state.channel.name, ui_state.new_channel_name, CPS_STR_SIZE);
+
+                    state.ui_screen = MENU_CHANNEL_EDIT;
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    state.ui_screen = MENU_CHANNEL_EDIT;
+                }
+                else if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                        msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT)
+                {
+                    _ui_textInputDel(ui_state.new_channel_name);
+                }
+                else if(input_isCharPressed(msg))
+                {
+                    _ui_textInputKeypad(ui_state.new_channel_name, 15, msg, false);
+                }
+                break;
+            case MENU_CHANNEL_DELETE:
+                if(msg.keys & KEY_ENTER)
+                {
+                    if(ui_state.edit_mode)
+                    {
+                        if(cps_deleteChannel(state.channel, state.channel_index) == -1)
+                        {
+                            _ui_announceStoreError();
+                        }
+                        else
+                        ui_state.edit_mode = false;
+                        {
+                            if(_ui_fsm_loadChannel(state.channel_index, sync_rtx) == -1)
+                            {
+                                if(_ui_fsm_loadChannel(state.channel_index - 1, sync_rtx) == -1)
+                                {
+                                    state.channel = state.vfo_channel;
+                                    *sync_rtx = true;
+                                    state.ui_screen = MAIN_VFO;
+                                }
+                                else
+                                {
+                                    state.ui_screen = MAIN_MEM;
+                                }
+                            }
+                            else
+                            {
+                                state.ui_screen = MAIN_MEM;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ui_state.edit_mode = true;
+                    }
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    ui_state.edit_mode = false;
+                    state.ui_screen = MENU_CHANNEL_EDIT;
                 }
                 break;
             // Top menu screen
@@ -2674,6 +2967,8 @@ void ui_updateFSM(bool *sync_rtx)
             _ui_enterStandby();
         }
     }
+
+    _ui_persistSettingsIfNeeded();
 }
 
 bool ui_updateGUI()
@@ -2712,6 +3007,15 @@ bool ui_updateGUI()
         // Channel menu screen
         case MENU_CHANNEL:
             _ui_drawMenuChannel(&ui_state);
+            break;
+        case MENU_CHANNEL_EDIT:
+            _ui_drawMenuChannelEdit(&ui_state);
+            break;
+        case MENU_CHANNEL_RENAME:
+            _ui_drawMenuChannelRename(&ui_state);
+            break;
+        case MENU_CHANNEL_DELETE:
+            _ui_drawMenuChannelDelete(&ui_state);
             break;
         // Contacts menu screen
         case MENU_CONTACTS:

@@ -35,6 +35,9 @@ enum uiScreen
     MENU_TOP,
     MENU_BANK,
     MENU_CHANNEL,
+    MENU_CHANNEL_EDIT,
+    MENU_CHANNEL_RENAME,
+    MENU_CHANNEL_DELETE,
     MENU_CONTACTS,
     MENU_GPS,
     MENU_SETTINGS,
@@ -98,6 +101,16 @@ enum backupRestoreItems
 {
     BR_BACKUP = 0,
     BR_RESTORE
+};
+
+enum channelEditItems
+{
+    CE_RENAME = 0,
+    CE_RX_FREQ,
+    CE_TX_FREQ,
+    CE_SAVE,
+    CE_DELETE,
+    CE_CANCEL
 };
 
 enum displayItems
@@ -229,9 +242,11 @@ typedef struct ui_state_t
     char new_time_buf[9];
 #endif
     char new_callsign[10];
+    char new_channel_name[CPS_STR_SIZE];
     freq_t new_shift;
     uint16_t new_ppm;
     int8_t new_ppm_sign;
+    int16_t memory_edit_index;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)
@@ -252,6 +267,7 @@ extern const char *settings_m17_items[];
 extern const char *settings_fm_items[];
 extern const char * settings_accessibility_items[];
 extern const char *backup_restore_items[];
+extern const char *channel_edit_items[];
 extern const char *info_items[];
 extern const char *authors[];
 extern const uint8_t menu_num;
@@ -263,6 +279,7 @@ extern const uint8_t settings_m17_num;
 extern const uint8_t settings_fm_num;
 extern const uint8_t settings_accessibility_num;
 extern const uint8_t backup_restore_num;
+extern const uint8_t channel_edit_num;
 extern const uint8_t info_num;
 extern const uint8_t author_num;
 extern const color_t color_black;

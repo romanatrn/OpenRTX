@@ -47,3 +47,27 @@ channel_t cps_getDefaultChannel()
     channel.fm.txTone   = 0;
     return channel;
 }
+
+__attribute__((weak)) int cps_writeChannel(channel_t channel, uint16_t pos)
+{
+    (void) channel;
+    (void) pos;
+
+    return -1;
+}
+
+__attribute__((weak)) int cps_insertChannel(channel_t channel, uint16_t pos)
+{
+    (void) channel;
+    (void) pos;
+
+    return -1;
+}
+
+__attribute__((weak)) int cps_deleteChannel(channel_t channel, uint16_t pos)
+{
+    (void) channel;
+    (void) pos;
+
+    return -1;
+}
