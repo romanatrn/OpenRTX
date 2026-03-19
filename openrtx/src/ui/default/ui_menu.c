@@ -24,6 +24,7 @@
 
 /* UI main screen helper functions, their implementation is in "ui_main.c" */
 extern void _ui_drawMainBottom();
+extern void _ui_drawVFOMiddleInput(ui_state_t* ui_state);
 extern const char* _ui_getToneEnabledString(bool tone_tx_enable,
                             bool tone_rx_enable, bool use_abbreviation);
 
@@ -166,7 +167,7 @@ void _ui_drawMenuList(uint8_t selected, int (*getCurrentEntry)(char *buf, uint8_
                 text_color = color_black;
                 // Draw rectangle under selected item, compensating for text height
                 point_t rect_pos = {0, pos.y - layout.menu_h + 3};
-                gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, layout.menu_h, color_white, true);
+                gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, layout.menu_h, yellow_fab413, true);
                 announceMenuItemIfNeeded(entry_buf, NULL, false);
             }
             gfx_print(pos, layout.menu_font, TEXT_ALIGN_LEFT, text_color, entry_buf);
@@ -194,7 +195,8 @@ void _ui_drawMenuListValue(ui_state_t* ui_state, uint8_t selected,
         // Call function pointer to get current menu entry string
         result = (*getCurrentEntry)(entry_buf, sizeof(entry_buf), item+scroll);
         // Call function pointer to get current entry value string
-        result = (*getCurrentValue)(value_buf, sizeof(value_buf), item+scroll);
+        if(result == 0)
+            result = (*getCurrentValue)(value_buf, sizeof(value_buf), item+scroll);
         if(result != -1)
         {
             text_color = color_white;
@@ -210,7 +212,7 @@ void _ui_drawMenuListValue(ui_state_t* ui_state, uint8_t selected,
                     full_rect = false;
                 }
                 point_t rect_pos = {0, pos.y - layout.menu_h + 3};
-                gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, layout.menu_h, color_white, full_rect);
+                gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, layout.menu_h, yellow_fab413, full_rect);
                 bool editModeChanged = priorEditMode != ui_state->edit_mode;
                 priorEditMode = ui_state->edit_mode;
                 // force the menu item to be spoken  when the edit mode changes.
@@ -278,6 +280,9 @@ int _ui_getDisplayValueName(char *buf, uint8_t max_len, uint8_t index)
                      currentLanguage->on :
                      currentLanguage->off);
 	    return 0;
+        case D_THEME:
+            sniprintf(buf, max_len, "%s", ui_theme_names[last_state.settings.theme]);
+            return 0;
     }
     sniprintf(buf, max_len, "%d", value);
     return 0;
@@ -601,29 +606,51 @@ int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getBankName(char *buf, uint8_t max_len, uint8_t index)
 {
-    int result = 0;
-    // First bank "All channels" is not read from flash
-    if(index == 0)
-    {
-        strncpy(buf, currentLanguage->allChannels, max_len);
-    }
-    else
-    {
-        bankHdr_t bank;
-        result = cps_readBankHeader(&bank, index - 1);
-        if(result != -1)
-            sniprintf(buf, max_len, "%s", bank.name);
-    }
+    int result;
+    bankHdr_t bank;
+
+    result = cps_readBankHeader(&bank, index);
+    if(result != -1)
+        sniprintf(buf, max_len, "%s", bank.name);
+
     return result;
 }
 
 int _ui_getChannelName(char *buf, uint8_t max_len, uint8_t index)
 {
     channel_t channel;
-    int result = cps_readChannel(&channel, index);
+    int result = cps_readChannel(&channel, index + 1);
     if(result != -1)
         sniprintf(buf, max_len, "%s", channel.name);
     return result;
+}
+
+int _ui_getChannelMenuName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index == 0)
+    {
+        sniprintf(buf, max_len, "Add New");
+        return 0;
+    }
+
+    return _ui_getChannelName(buf, max_len, index - 1);
+}
+
+int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index == 0)
+    {
+        sniprintf(buf, max_len, "All Channels");
+        return 0;
+    }
+
+    if(index == 1)
+    {
+        sniprintf(buf, max_len, "Add New");
+        return 0;
+    }
+
+    return _ui_getBankName(buf, max_len, index - 2);
 }
 
 int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
@@ -631,6 +658,33 @@ int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
     if(index >= channel_edit_num) return -1;
     sniprintf(buf, max_len, "%s", channel_edit_items[index]);
     return 0;
+}
+
+int _ui_getChannelActionName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= channel_action_num) return -1;
+    sniprintf(buf, max_len, "%s", channel_action_items[index]);
+    return 0;
+}
+
+int _ui_getContactEditName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index >= contact_edit_num) return -1;
+    sniprintf(buf, max_len, "%s", contact_edit_items[index]);
+    return 0;
+}
+
+int _ui_getContactEditValueName(char *buf, uint8_t max_len, uint8_t index)
+{
+    switch(index)
+    {
+        case CT_RENAME:
+            sniprintf(buf, max_len, "%s", ui_state.new_channel_name);
+            return 0;
+        default:
+            buf[0] = '\0';
+            return 0;
+    }
 }
 
 int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
@@ -652,6 +706,34 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
                       (unsigned long) (last_state.channel.tx_frequency / 1000000),
                       (unsigned long) ((last_state.channel.tx_frequency % 1000000) / 10));
             return 0;
+        case CE_MODE:
+            if(last_state.channel.mode == OPMODE_M17)
+                sniprintf(buf, max_len, "M17");
+            else
+                sniprintf(buf, max_len, "FM");
+            return 0;
+        case CE_BANDWIDTH:
+            sniprintf(buf, max_len, "%s", (last_state.channel.bandwidth == BW_12_5) ? "12.5 kHz" : "25 kHz");
+            return 0;
+        case CE_POWER:
+            sniprintf(buf, max_len, "%lu.%01luW",
+                      (unsigned long) (last_state.channel.power / 1000),
+                      (unsigned long) ((last_state.channel.power % 1000) / 100));
+            return 0;
+        case CE_ZONE:
+            if(ui_state.channel_edit_zone < 0)
+            {
+                sniprintf(buf, max_len, "None");
+            }
+            else
+            {
+                bankHdr_t bank = {0};
+                if(cps_readBankHeader(&bank, ui_state.channel_edit_zone) != -1)
+                    sniprintf(buf, max_len, "%s", bank.name);
+                else
+                    sniprintf(buf, max_len, "None");
+            }
+            return 0;
         default:
             buf[0] = '\0';
             return 0;
@@ -661,15 +743,26 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
 int _ui_getContactName(char *buf, uint8_t max_len, uint8_t index)
 {
     contact_t contact;
-    int result = cps_readContact(&contact, index);
+    int result = cps_readContact(&contact, index + 1);
     if(result != -1)
         sniprintf(buf, max_len, "%s", contact.name);
     return result;
 }
 
+int _ui_getContactMenuName(char *buf, uint8_t max_len, uint8_t index)
+{
+    if(index == 0)
+    {
+        sniprintf(buf, max_len, "Add New");
+        return 0;
+    }
+
+    return _ui_getContactName(buf, max_len, index - 1);
+}
+
 void _ui_drawMenuTop(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Menu" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->menu);
@@ -679,27 +772,55 @@ void _ui_drawMenuTop(ui_state_t* ui_state)
 
 void _ui_drawMenuBank(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Bank" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->banks);
     // Print bank entries
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getBankName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getBankMenuName);
+}
+
+void _ui_drawMenuBankAction(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Zone Menu");
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelActionName);
+}
+
+void _ui_drawMenuBankRename(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Zone Name");
+
+    gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
 }
 
 void _ui_drawMenuChannel(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Channel" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->channels);
     // Print channel entries
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelMenuName);
+}
+
+void _ui_drawMenuChannelAction(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Channel Menu");
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getChannelActionName);
 }
 
 void _ui_drawMenuChannelEdit(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, "Edit Channel");
     _ui_drawMenuListValue(ui_state,
@@ -710,7 +831,7 @@ void _ui_drawMenuChannelEdit(ui_state_t* ui_state)
 
 void _ui_drawMenuChannelRename(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
 
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, "Rename");
@@ -720,9 +841,19 @@ void _ui_drawMenuChannelRename(ui_state_t* ui_state)
                   TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
 }
 
+void _ui_drawMenuChannelFreqInput(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, (ui_state->input_set == SET_RX) ? "Edit RX" : "Edit TX");
+
+    _ui_drawVFOMiddleInput(ui_state);
+}
+
 void _ui_drawMenuChannelDelete(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
 
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, "Delete");
@@ -739,19 +870,42 @@ void _ui_drawMenuChannelDelete(ui_state_t* ui_state)
 
 void _ui_drawMenuContacts(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Contacts" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->contacts);
     // Print contact entries
-    _ui_drawMenuList(ui_state->menu_selected, _ui_getContactName);
+    _ui_drawMenuList(ui_state->menu_selected, _ui_getContactMenuName);
+}
+
+void _ui_drawMenuContactEdit(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Edit Contact");
+    _ui_drawMenuListValue(ui_state,
+                          ui_state->menu_selected,
+                          _ui_getContactEditName,
+                          _ui_getContactEditValueName);
+}
+
+void _ui_drawMenuContactRename(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Contact Name");
+
+    gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_channel_name);
 }
 
 #ifdef CONFIG_GPS
 void _ui_drawMenuGPS()
 {
     char *fix_buf, *type_buf;
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "GPS" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->gps);
@@ -856,7 +1010,7 @@ void _ui_drawMenuGPS()
 
 void _ui_drawMenuSettings(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Settings" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->settings);
@@ -866,7 +1020,7 @@ void _ui_drawMenuSettings(ui_state_t* ui_state)
 
 void _ui_drawMenuBackupRestore(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Backup & Restore" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->backupAndRestore);
@@ -878,7 +1032,7 @@ void _ui_drawMenuBackup(ui_state_t* ui_state)
 {
     (void) ui_state;
 
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Flash Backup" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->flashBackup);
@@ -904,7 +1058,7 @@ void _ui_drawMenuRestore(ui_state_t* ui_state)
 {
     (void) ui_state;
 
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Flash Restore" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->flashRestore);
@@ -928,7 +1082,7 @@ void _ui_drawMenuRestore(ui_state_t* ui_state)
 
 void _ui_drawMenuInfo(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Info" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->info);
@@ -939,7 +1093,7 @@ void _ui_drawMenuInfo(ui_state_t* ui_state)
 
 void _ui_drawMenuAbout(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
 
     point_t logo_pos;
     if(CONFIG_SCREEN_HEIGHT >= 100)
@@ -974,7 +1128,7 @@ void _ui_drawMenuAbout(ui_state_t* ui_state)
 
 void _ui_drawSettingsDisplay(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Display" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->display);
@@ -986,7 +1140,7 @@ void _ui_drawSettingsDisplay(ui_state_t* ui_state)
 #ifdef CONFIG_GPS
 void _ui_drawSettingsGPS(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "GPS Settings" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->gpsSettings);
@@ -1000,7 +1154,7 @@ void _ui_drawSettingsGPS(ui_state_t* ui_state)
 #ifdef CONFIG_RTC
 void _ui_drawSettingsTimeDate()
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     datetime_t local_time = utcToLocalTime(last_state.time,
                                            last_state.settings.utc_timezone);
     // Print "Time&Date" on top bar
@@ -1019,7 +1173,7 @@ void _ui_drawSettingsTimeDateSet(ui_state_t* ui_state)
 {
     (void) last_state;
 
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Time&Date" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->timeAndDate);
@@ -1059,7 +1213,7 @@ void _ui_drawSettingsTimeDateSet(ui_state_t* ui_state)
 #ifdef CONFIG_M17
 void _ui_drawSettingsM17(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "M17 Settings" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->m17settings);
@@ -1101,7 +1255,7 @@ void _ui_drawSettingsM17(ui_state_t* ui_state)
 
 void _ui_drawSettingsFM(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "FM Settings" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER, color_white,
               currentLanguage->fm);
@@ -1112,7 +1266,7 @@ void _ui_drawSettingsFM(ui_state_t* ui_state)
 
 void _ui_drawSettingsAccessibility(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
     // Print "Accessibility" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->accessibility);
@@ -1128,7 +1282,7 @@ void _ui_drawSettingsReset2Defaults(ui_state_t* ui_state)
     static int drawcnt = 0;
     static long long lastDraw = 0;
 
-    gfx_clearScreen();
+    _ui_clearScreen();
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->resetToDefaults);
 
@@ -1150,9 +1304,37 @@ void _ui_drawSettingsReset2Defaults(ui_state_t* ui_state)
     drawcnt++;
 }
 
+void _ui_drawSettingsFactoryReset(ui_state_t* ui_state)
+{
+    (void) ui_state;
+
+    static int drawcnt = 0;
+    static long long lastDraw = 0;
+
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Factory Reset");
+
+    color_t textcolor = drawcnt % 2 == 0 ? color_white : yellow_fab413;
+    gfx_printLine(1, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.top_font,
+                  TEXT_ALIGN_CENTER, textcolor, "Codeplug only");
+    gfx_printLine(2, 4, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.top_font,
+                  TEXT_ALIGN_CENTER, textcolor, currentLanguage->pressEnterTwice);
+
+    if((getTick() - lastDraw) > 1000)
+    {
+        drawcnt++;
+        lastDraw = getTick();
+    }
+
+    drawcnt++;
+}
+
 void _ui_drawSettingsRadio(ui_state_t* ui_state)
 {
-    gfx_clearScreen();
+    _ui_clearScreen();
 
     // Print "Radio Settings" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
@@ -1347,7 +1529,11 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "         FM");
             break;
         case OPMODE_DMR:
+#if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)
+            gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          M17");
+#else
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          DMR");
+#endif
             break;
 #ifdef CONFIG_M17
         case OPMODE_M17:
