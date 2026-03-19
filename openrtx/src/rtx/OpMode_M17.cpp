@@ -15,6 +15,7 @@
 #include "core/gps.h"
 #include "core/state.h"
 #include "core/utils.h"
+#include "peripherals/rng.h"
 #include "rtx/rtx.h"
 
 #ifdef PLATFORM_MOD17
@@ -29,7 +30,8 @@ using namespace M17;
 
 OpMode_M17::OpMode_M17() : startRx(false), startTx(false), locked(false),
                            dataValid(false), extendedCall(false),
-                           invertTxPhase(false), invertRxPhase(false)
+                           invertTxPhase(false), invertRxPhase(false),
+                           gpsTimer(0), txFrameNumber(0)
 {
 
 }
@@ -47,6 +49,7 @@ void OpMode_M17::enable()
     locked       = false;
     dataValid    = false;
     extendedCall = false;
+    txFrameNumber = 0;
     startRx      = true;
     startTx      = false;
 }
@@ -242,7 +245,7 @@ void OpMode_M17::rxState(rtxStatus_t *const status)
 
                 // Check CAN on RX, if enabled.
                 // If check is disabled, force match to true.
-                bool canMatch =  (streamType.fields.CAN == status->can)
+                bool canMatch =  (streamType.fields.CAN == status->rxCan)
                               || (status->canRxEn == false);
 
                 // Check if the destination callsign of the incoming transmission
@@ -266,8 +269,28 @@ void OpMode_M17::rxState(rtxStatus_t *const status)
                         codec_startDecode(rxAudioPath);
 
                     M17StreamFrame sf = decoder.getStreamFrame();
-                    codec_pushFrame(sf.payload().data(),     false);
-                    codec_pushFrame(sf.payload().data() + 8, false);
+                    payload_t audio = sf.payload();
+                    uint8_t keyIndex = 0;
+                    uint8_t cfgEncType = M17_ENCRYPTION_NONE;
+                    uint8_t cfgEncSubType = 0;
+                    std::array<uint8_t, 16> key;
+                    size_t keyLen = 0;
+                    bool decryptOk = (streamType.fields.encType == M17_ENCRYPTION_NONE);
+
+                    if((streamType.fields.encType != M17_ENCRYPTION_NONE)
+                       && resolveEncryptionConfig(cfgEncType, cfgEncSubType, keyIndex)
+                       && loadKeySlot(keyIndex, key, keyLen))
+                    {
+                        M17Crypto::decrypt(lsf, audio, key, keyLen,
+                                           sf.getFrameNumber() & 0x7FFF);
+                        decryptOk = true;
+                    }
+
+                    if(decryptOk)
+                    {
+                        codec_pushFrame(audio.data(),     false);
+                        codec_pushFrame(audio.data() + 8, false);
+                    }
                 }
             }
         }
@@ -307,6 +330,14 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         startTx = false;
 
         M17LinkSetupFrame lsf;
+        uint8_t encType = M17_ENCRYPTION_NONE;
+        uint8_t encSubType = M17_META_TEXT;
+        uint8_t keyIndex = 0;
+        std::array<uint8_t, 16> key;
+        size_t keyLen = 0;
+        bool encryptionActive = resolveEncryptionConfig(encType, encSubType, keyIndex)
+                             && (encType != M17_ENCRYPTION_NONE)
+                             && loadKeySlot(keyIndex, key, keyLen);
 
         lsf.clear();
         lsf.setSource(status->source_address);
@@ -315,19 +346,38 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         if(!dst.isEmpty())
             lsf.setDestination(dst);
 
-        streamType_t type;
+        streamType_t type = {};
         type.fields.dataMode = M17_DATAMODE_STREAM;     // Stream
         type.fields.dataType = M17_DATATYPE_VOICE;      // Voice data
-        type.fields.CAN      = status->can;             // Channel access number
+        type.fields.encType  = encryptionActive ? encType : M17_ENCRYPTION_NONE;
+        type.fields.encSubType = encryptionActive ? encSubType : M17_META_TEXT;
+        type.fields.CAN      = status->txCan;           // Channel access number
 
         lsf.setType(type);
+        clearTxMeta(lsf.metadata());
+        txFrameNumber = 0;
 
-        if(strlen(state.settings.M17_meta_text) > 0) {
+        if(!encryptionActive && (strlen(state.settings.M17_meta_text) > 0)) {
             metaText.setText(state.settings.M17_meta_text);
             metaText.getNextBlock(lsf.metadata());
         }
 
-        if(state.settings.gps_enabled) {
+        if(encryptionActive && (encType == M17_ENCRYPTION_AES)) {
+            M17Crypto::fillAesMeta(lsf.metadata(), static_cast<uint32_t>(getTick()));
+            for(uint8_t i = 4; i < 12; i += 4)
+            {
+                uint32_t rnd = rng_get();
+                lsf.metadata().raw_data[i]     = (rnd >> 24) & 0xFF;
+                lsf.metadata().raw_data[i + 1] = (rnd >> 16) & 0xFF;
+                lsf.metadata().raw_data[i + 2] = (rnd >> 8) & 0xFF;
+                lsf.metadata().raw_data[i + 3] = rnd & 0xFF;
+            }
+            uint16_t ctrHigh = static_cast<uint16_t>(rng_get());
+            lsf.metadata().raw_data[12] = (ctrHigh >> 8) & 0xFF;
+            lsf.metadata().raw_data[13] = ctrHigh & 0xFF;
+        }
+
+        if(!encryptionActive && state.settings.gps_enabled) {
             lsf.setGnssData(&state.gps_data, M17_GNSS_STATION_HANDHELD);
             gpsTimer = 0;
         }
@@ -358,7 +408,24 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         status->opStatus = OFF;
     }
 
+    {
+        uint8_t encType = M17_ENCRYPTION_NONE;
+        uint8_t encSubType = 0;
+        uint8_t keyIndex = 0;
+        std::array<uint8_t, 16> key;
+        size_t keyLen = 0;
+
+        if(resolveEncryptionConfig(encType, encSubType, keyIndex)
+           && (encType != M17_ENCRYPTION_NONE)
+           && loadKeySlot(keyIndex, key, keyLen))
+        {
+            auto lsf = encoder.getCurrentLsf();
+            M17Crypto::encrypt(lsf, dataFrame, key, keyLen, txFrameNumber);
+        }
+    }
+
     encoder.encodeStreamFrame(dataFrame, m17Frame, lastFrame);
+    txFrameNumber = (txFrameNumber + 1) & 0x7FFF;
     modulator.sendFrame(m17Frame);
 
     // After encoding a stream frame the encoder advances its LICH counter.
@@ -368,13 +435,15 @@ void OpMode_M17::txState(rtxStatus_t *const status)
     // the upcoming superframe.
     if(encoder.superframeBoundary())
     {
-        if(strlen(state.settings.M17_meta_text) > 0) {
+        if((encoder.getCurrentLsf().getType().fields.encType == M17_ENCRYPTION_NONE)
+           && (strlen(state.settings.M17_meta_text) > 0)) {
             auto lsf = encoder.getCurrentLsf();
             metaText.getNextBlock(lsf.metadata());
             encoder.updateLsfData(lsf);
         }
 
-        if(state.settings.gps_enabled) {
+        if((encoder.getCurrentLsf().getType().fields.encType == M17_ENCRYPTION_NONE)
+           && state.settings.gps_enabled) {
             gpsTimer++;
 
             if(gpsTimer >= GPS_UPDATE_TICKS) {
@@ -415,4 +484,63 @@ bool OpMode_M17::compareCallsigns(const std::string& localCs,
         return true;
 
     return false;
+}
+
+bool OpMode_M17::resolveEncryptionConfig(uint8_t& encType, uint8_t& encSubType,
+                                         uint8_t& keyIndex) const
+{
+    encType = state.settings.m17_default_encryption;
+    encSubType = state.settings.m17_default_enc_subtype;
+    keyIndex = state.settings.m17_default_key_index;
+
+    if((state.tuner_mode != VFO) && (state.channel.mode == OPMODE_M17))
+    {
+        encType = state.channel.m17.encr;
+        encSubType = state.channel.m17.enc_subtype;
+        if(state.channel.m17.key_index != 0)
+            keyIndex = state.channel.m17.key_index;
+    }
+
+    if(encType == PLAIN)
+    {
+        encType = M17_ENCRYPTION_NONE;
+        return true;
+    }
+
+    if(encType == SCRAMBLER)
+    {
+        encType = M17_ENCRYPTION_SCRAMBLER;
+        if(encSubType > M17_SCRAMBLING_24BIT)
+            encSubType = M17_SCRAMBLING_16BIT;
+        return true;
+    }
+
+    if(encType == AES)
+    {
+        encType = M17_ENCRYPTION_AES;
+        encSubType = 0;
+        return true;
+    }
+
+    encType = M17_ENCRYPTION_NONE;
+    encSubType = M17_META_TEXT;
+    return false;
+}
+
+bool OpMode_M17::loadKeySlot(uint8_t keyIndex, std::array<uint8_t, 16>& key,
+                             size_t& keyLen) const
+{
+    key.fill(0);
+    keyLen = 0;
+
+    if((keyIndex == 0) || (keyIndex > M17_KEY_SLOTS))
+        return false;
+
+    return M17Crypto::parseHexKey(state.settings.m17_keys[keyIndex - 1], key,
+                                  keyLen);
+}
+
+void OpMode_M17::clearTxMeta(M17::meta_t& meta) const
+{
+    memset(meta.raw_data, 0, sizeof(meta.raw_data));
 }

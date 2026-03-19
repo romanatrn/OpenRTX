@@ -80,7 +80,7 @@ public:
      *
      * @return a copy of the frame's tream type field.
      */
-    streamType_t getType();
+    streamType_t getType() const;
 
     /**
      * Set stream type field.
@@ -96,6 +96,8 @@ public:
      * write access.
      */
     meta_t& metadata();
+
+    const meta_t& metadata() const;
 
     /**
      * Compute a new CRC over the frame content and update the corresponding
