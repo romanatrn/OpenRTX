@@ -79,7 +79,7 @@ const stringsTable_t englishStrings =
     .usedHeap          = "Used heap",
     .broadcast         = "ALL",
     .radioSettings     = "Radio Settings",
-    .offset            = "Offset",
+    .repeaterShift     = "Repeater Shift",
     .macroLatching     = "Macro Latch",
     .noGps             = "No GPS",
     .batteryIcon       = "Battery Icon",
@@ -95,5 +95,6 @@ const stringsTable_t englishStrings =
     .CAN               = "CAN",
     .canRxCheck        = "CAN RX Check",
     .metaText          = "Meta Txt",
+    .ppmFreqOffset     = "PPM Freq. Offset",
 };
 #endif  // ENGLISHSTRINGS_H
