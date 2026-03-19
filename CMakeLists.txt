@@ -94,6 +94,7 @@ target_sources(app
     openrtx/src/core/crc.c
     openrtx/src/core/datetime.c
     openrtx/src/core/openrtx.c
+    openrtx/src/core/repeater.c
     openrtx/src/core/backup.c
     openrtx/src/core/xmodem.c
     openrtx/src/core/audio_codec.c

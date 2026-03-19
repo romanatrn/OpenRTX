@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "core/repeater.h"
 #include "core/utils.h"
 #include "ui/gps_map.h"
 #include "ui/ui_default.h"
@@ -689,11 +690,17 @@ int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
 
     if(index == 1)
     {
+        sniprintf(buf, max_len, "Nearest");
+        return 0;
+    }
+
+    if(index == 2)
+    {
         sniprintf(buf, max_len, "Add New");
         return 0;
     }
 
-    return _ui_getBankName(buf, max_len, index - 2);
+    return _ui_getBankName(buf, max_len, index - 3);
 }
 
 int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
@@ -758,6 +765,8 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
     const channel_t *channel = ui_state.memory_edit_active
                              ? &ui_state.memory_channel_draft
                              : &last_state.channel;
+    int32_t lat_e6;
+    int32_t lon_e6;
 
     if(index >= channel_edit_num) return -1;
 
@@ -809,6 +818,27 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
                 sniprintf(buf, max_len, "None");
             else
                 sniprintf(buf, max_len, "List %u", ui_state.channel_edit_scanlist);
+            return 0;
+        case CE_LOCATION:
+            if(repeater_getChannelLocation(channel, &lat_e6, &lon_e6))
+            {
+                const char lat_sign = (lat_e6 < 0) ? '-' : '+';
+                const char lon_sign = (lon_e6 < 0) ? '-' : '+';
+                const uint32_t lat_abs = (lat_e6 < 0) ? (uint32_t) (-lat_e6) : (uint32_t) lat_e6;
+                const uint32_t lon_abs = (lon_e6 < 0) ? (uint32_t) (-lon_e6) : (uint32_t) lon_e6;
+
+                sniprintf(buf, max_len, "%c%02lu.%04lu %c%03lu.%04lu",
+                          lat_sign,
+                          (unsigned long) (lat_abs / 1000000U),
+                          (unsigned long) ((lat_abs % 1000000U) / 100U),
+                          lon_sign,
+                          (unsigned long) (lon_abs / 1000000U),
+                          (unsigned long) ((lon_abs % 1000000U) / 100U));
+            }
+            else
+            {
+                sniprintf(buf, max_len, "None");
+            }
             return 0;
         default:
             buf[0] = '\0';
@@ -903,6 +933,37 @@ void _ui_drawMenuChannelEdit(ui_state_t* ui_state)
                           ui_state->menu_selected,
                           _ui_getChannelEditName,
                           _ui_getChannelEditValueName);
+}
+
+void _ui_drawMenuChannelLocationInput(ui_state_t* ui_state)
+{
+    char value_buf[16] = {0};
+    const bool latitude = (ui_state->channel_edit_location_field == 0U);
+    const int32_t value_e4 = latitude ? ui_state->channel_edit_latitude_e4
+                                      : ui_state->channel_edit_longitude_e4;
+
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, latitude ? "Latitude" : "Longitude");
+
+    sniprintf(value_buf, sizeof(value_buf), "%c%0*lu.%04lu",
+              (value_e4 < 0) ? '-' : '+',
+              latitude ? 2 : 3,
+              (unsigned long) (((value_e4 < 0) ? -value_e4 : value_e4) / 10000),
+              (unsigned long) (((value_e4 < 0) ? -value_e4 : value_e4) % 10000));
+
+    gfx_printLine(1, 2, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, layout.input_font,
+                  TEXT_ALIGN_CENTER, color_white, "%s", value_buf);
+    gfx_printLine(2, 3, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
+                  layout.horizontal_pad, FONT_SIZE_5PT,
+                  TEXT_ALIGN_CENTER, color_white,
+                  "0-9 add  < del  > sign");
+    gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_LEFT,
+              color_white, "# Clear");
+    gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
+              color_white, latitude ? "ENT=Next" : "ENT=Save");
 }
 
 void _ui_drawMenuChannelRename(ui_state_t* ui_state)

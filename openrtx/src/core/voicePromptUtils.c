@@ -11,6 +11,7 @@
 
 #include "core/voicePromptUtils.h"
 
+#include "core/repeater.h"
 #include "core/state.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -497,9 +498,16 @@ void vp_announceBank(const uint16_t bank, const vpQueueFlags_t flags)
 
     if (state.bank_enabled)
     {
-        bankHdr_t bank_hdr = {0};
-        cps_readBankHeader(&bank_hdr, bank);
-        vp_queueString(bank_hdr.name, vpAnnounceCommonSymbols);
+        if(state.bank_is_virtual && (bank == REPEATER_NEAREST_BANK))
+        {
+            vp_queueString("Nearest", vpAnnounceCommonSymbols);
+        }
+        else
+        {
+            bankHdr_t bank_hdr = {0};
+            cps_readBankHeader(&bank_hdr, bank);
+            vp_queueString(bank_hdr.name, vpAnnounceCommonSymbols);
+        }
     }
     else
     {

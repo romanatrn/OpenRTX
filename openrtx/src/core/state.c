@@ -66,6 +66,7 @@ void state_init()
 
     state.channel_index = 0;    // Set default channel index (it is 0-based)
     state.bank_enabled  = false;
+    state.bank_is_virtual = false;
     state.rtxStatus     = RTX_OFF;
     state.emergency     = false;
     state.txDisable     = false;

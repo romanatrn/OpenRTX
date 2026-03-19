@@ -60,6 +60,14 @@ void _ui_drawMainTop(ui_state_t * ui_state)
 void _ui_drawBankChannel()
 {
     // Print Bank number, channel number and Channel name
+    if(last_state.bank_enabled && last_state.bank_is_virtual)
+    {
+        gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
+                  color_white, "N-%03d: %.12s",
+                  last_state.channel_index + 1, last_state.channel.name);
+        return;
+    }
+
     uint16_t b = (last_state.bank_enabled) ? last_state.bank : 0;
     gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
               color_white, "%01d-%03d: %.12s",

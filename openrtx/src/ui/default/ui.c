@@ -61,6 +61,7 @@
 #include <string.h>
 #include "core/battery.h"
 #include "core/input.h"
+#include "core/repeater.h"
 #include "core/scan.h"
 #include "core/utils.h"
 #include "hwconfig.h"
@@ -87,6 +88,7 @@ extern void _ui_drawMenuBankRename(ui_state_t* ui_state);
 extern void _ui_drawMenuChannel(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelEdit(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelAction(ui_state_t* ui_state);
+extern void _ui_drawMenuChannelLocationInput(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelFreqInput(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelRename(ui_state_t* ui_state);
 extern void _ui_drawMenuChannelDelete(ui_state_t* ui_state);
@@ -238,6 +240,7 @@ const char *channel_edit_items[] =
     "Power",
     "Zone",
     "Scan List",
+    "Repeater GPS",
     "Save",
     "Delete",
     "Cancel"
@@ -771,6 +774,195 @@ return _ui_freq_check_limits(channel->rx_frequency) &&
 static int16_t _ui_findZoneForChannel(const uint16_t channel_index);
 static channel_t *_ui_getMemoryEditChannel(void);
 
+static bool _ui_isVirtualBankActive(void)
+{
+    return state.bank_enabled && state.bank_is_virtual;
+}
+
+static int _ui_getBankChannelCount(uint16_t bank_index, uint16_t *count)
+{
+    if(count == NULL)
+        return -1;
+
+    if(_ui_isVirtualBankActive() && (bank_index == REPEATER_NEAREST_BANK))
+    {
+        *count = repeater_getNearestCount(&state.gps_data);
+        return 0;
+    }
+
+    bankHdr_t bank = {0};
+    if(cps_readBankHeader(&bank, bank_index) == -1)
+        return -1;
+
+    *count = bank.ch_count;
+    return 0;
+}
+
+static int32_t _ui_getBankChannelIndex(uint16_t bank_index, uint16_t channel_index)
+{
+    if(_ui_isVirtualBankActive() && (bank_index == REPEATER_NEAREST_BANK))
+        return repeater_getNearestChannelIndex(&state.gps_data, channel_index);
+
+    return cps_readBankData(bank_index, channel_index);
+}
+
+static uint8_t _ui_getLocationFieldDigits(uint8_t field)
+{
+    return (field == 0U) ? 6U : 7U;
+}
+
+static uint8_t _ui_countLocationDigits(int32_t value_e4)
+{
+    uint32_t abs_value = (value_e4 < 0) ? (uint32_t) (-value_e4) : (uint32_t) value_e4;
+    uint8_t digits = 0U;
+
+    while(abs_value > 0U)
+    {
+        abs_value /= 10U;
+        digits++;
+    }
+
+    return digits;
+}
+
+static int32_t _ui_getLocationFieldValue(uint8_t field)
+{
+    return (field == 0U) ? ui_state.channel_edit_latitude_e4
+                         : ui_state.channel_edit_longitude_e4;
+}
+
+static void _ui_setLocationFieldValue(uint8_t field, int32_t value_e4)
+{
+    if(field == 0U)
+        ui_state.channel_edit_latitude_e4 = value_e4;
+    else
+        ui_state.channel_edit_longitude_e4 = value_e4;
+}
+
+static bool _ui_getChannelLocationE4(const channel_t *channel, int32_t *lat_e4,
+                                     int32_t *lon_e4)
+{
+    int32_t lat_e6;
+    int32_t lon_e6;
+
+    if(!repeater_getChannelLocation(channel, &lat_e6, &lon_e6))
+    {
+        if(lat_e4 != NULL)
+            *lat_e4 = 0;
+        if(lon_e4 != NULL)
+            *lon_e4 = 0;
+        return false;
+    }
+
+    if(lat_e4 != NULL)
+        *lat_e4 = lat_e6 / 100;
+    if(lon_e4 != NULL)
+        *lon_e4 = lon_e6 / 100;
+
+    return true;
+}
+
+static bool _ui_setChannelLocationE4(channel_t *channel, int32_t lat_e4, int32_t lon_e4)
+{
+    int32_t lat_int;
+    int32_t lon_int;
+    int32_t lat_dec;
+    int32_t lon_dec;
+
+    if(channel == NULL)
+        return false;
+    if((lat_e4 < -900000) || (lat_e4 > 900000))
+        return false;
+    if((lon_e4 < -1800000) || (lon_e4 > 1800000))
+        return false;
+    if((lat_e4 == 0) && (lon_e4 == 0))
+        return false;
+
+    lat_int = lat_e4 / 10000;
+    lon_int = lon_e4 / 10000;
+    lat_dec = lat_e4 % 10000;
+    lon_dec = lon_e4 % 10000;
+
+    if(lat_dec < 0)
+        lat_dec = -lat_dec;
+    if(lon_dec < 0)
+        lon_dec = -lon_dec;
+
+    channel->ch_location.ch_lat_int = (int8_t) lat_int;
+    channel->ch_location.ch_lat_dec = (uint16_t) lat_dec;
+    channel->ch_location.ch_lon_int = (int16_t) lon_int;
+    channel->ch_location.ch_lon_dec = (uint16_t) lon_dec;
+    channel->ch_location.ch_altitude = 0;
+    return true;
+}
+
+static void _ui_beginChannelLocationInput(void)
+{
+    _ui_getChannelLocationE4(&ui_state.memory_channel_draft,
+                             &ui_state.channel_edit_latitude_e4,
+                             &ui_state.channel_edit_longitude_e4);
+    ui_state.channel_edit_location_field = 0U;
+    ui_state.channel_edit_location_digits = _ui_countLocationDigits(ui_state.channel_edit_latitude_e4);
+    state.ui_screen = MENU_CHANNEL_LOCATION_INPUT;
+}
+
+static void _ui_locationInputAppendDigit(uint8_t digit)
+{
+    const uint8_t max_digits = _ui_getLocationFieldDigits(ui_state.channel_edit_location_field);
+    int32_t value = _ui_getLocationFieldValue(ui_state.channel_edit_location_field);
+    const bool negative = (value < 0);
+    uint32_t abs_value = negative ? (uint32_t) (-value) : (uint32_t) value;
+
+    if(ui_state.channel_edit_location_digits >= max_digits)
+        return;
+
+    abs_value = (abs_value * 10U) + digit;
+    ui_state.channel_edit_location_digits++;
+    _ui_setLocationFieldValue(ui_state.channel_edit_location_field,
+                              negative ? -(int32_t) abs_value : (int32_t) abs_value);
+}
+
+static void _ui_locationInputBackspace(void)
+{
+    int32_t value = _ui_getLocationFieldValue(ui_state.channel_edit_location_field);
+    const bool negative = (value < 0);
+    uint32_t abs_value = negative ? (uint32_t) (-value) : (uint32_t) value;
+
+    abs_value /= 10U;
+    if(ui_state.channel_edit_location_digits > 0U)
+        ui_state.channel_edit_location_digits--;
+
+    _ui_setLocationFieldValue(ui_state.channel_edit_location_field,
+                              negative ? -(int32_t) abs_value : (int32_t) abs_value);
+}
+
+static void _ui_locationInputToggleSign(void)
+{
+    _ui_setLocationFieldValue(ui_state.channel_edit_location_field,
+                              -_ui_getLocationFieldValue(ui_state.channel_edit_location_field));
+}
+
+static bool _ui_confirmChannelLocationInput(void)
+{
+    if(ui_state.channel_edit_location_field == 0U)
+    {
+        ui_state.channel_edit_location_field = 1U;
+        ui_state.channel_edit_location_digits = _ui_countLocationDigits(ui_state.channel_edit_longitude_e4);
+        return false;
+    }
+
+    if(!_ui_setChannelLocationE4(&ui_state.memory_channel_draft,
+                                 ui_state.channel_edit_latitude_e4,
+                                 ui_state.channel_edit_longitude_e4))
+    {
+        vp_announceError(vpqInit);
+        return false;
+    }
+
+    state.ui_screen = MENU_CHANNEL_EDIT;
+    return true;
+}
+
 static void _ui_cycleChannelMode(int8_t direction)
 {
     (void) direction;
@@ -789,6 +981,7 @@ static void _ui_cycleChannelMode(int8_t direction)
 static void _ui_cycleChannelBandwidth(int8_t direction);
 static void _ui_cycleChannelZone(int8_t direction);
 static void _ui_cycleChannelScanList(int8_t direction);
+static void _ui_beginChannelLocationInput(void);
 static void _ui_prepareBankRename(int16_t bank_index);
 static void _ui_prepareContactEdit(int16_t contact_index);
 static void _ui_announceStoreError();
@@ -800,14 +993,14 @@ static int16_t _ui_resolveChannelStorageIndex(int16_t channel_index)
 
     if(state.bank_enabled)
     {
-        bankHdr_t bank = {0};
+        uint16_t bank_count = 0;
 
-        if(cps_readBankHeader(&bank, state.bank) == -1)
+        if(_ui_getBankChannelCount(state.bank, &bank_count) == -1)
             return -1;
-        if(channel_index >= bank.ch_count)
+        if(channel_index >= bank_count)
             return -1;
 
-        return cps_readBankData(state.bank, channel_index);
+        return _ui_getBankChannelIndex(state.bank, channel_index);
     }
 
     return channel_index;
@@ -843,7 +1036,7 @@ static void _ui_beginMemoryEditSession(int16_t channel_index, const channel_t *s
 
     if(channel_index >= 0)
         ui_state.channel_edit_zone = _ui_findZoneForChannel((uint16_t) channel_index);
-    else if(state.bank_enabled)
+    else if(state.bank_enabled && !state.bank_is_virtual)
         ui_state.channel_edit_zone = state.bank;
     else
         ui_state.channel_edit_zone = -1;
@@ -883,6 +1076,7 @@ static void _ui_resetCodeplug(bool *sync_rtx)
     }
 
     state.bank_enabled = false;
+    state.bank_is_virtual = false;
     state.bank = 0;
     state.channel_index = 0;
     state.vfo_channel = preserved_vfo;
@@ -934,11 +1128,13 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
     // If a bank is active, get index from current bank
     if(state.bank_enabled)
     {
-        bankHdr_t bank = { 0 };
-        cps_readBankHeader(&bank, state.bank);
-        if((channel_index < 0) || (channel_index >= bank.ch_count))
+        uint16_t bank_count = 0;
+
+        if(_ui_getBankChannelCount(state.bank, &bank_count) == -1)
             return -1;
-        channel_index = cps_readBankData(state.bank, channel_index);
+        if((channel_index < 0) || (channel_index >= bank_count))
+            return -1;
+        channel_index = _ui_getBankChannelIndex(state.bank, channel_index);
     }
 
     int result = cps_readChannel(&channel, channel_index + 1);
@@ -1152,8 +1348,11 @@ static void _ui_fsm_storeVfoToNewChannel(bool *sync_rtx)
         return;
     }
 
+    repeater_invalidateNearestCache();
+
     state.vfo_channel = state.channel;
     state.bank_enabled = false;
+    state.bank_is_virtual = false;
 
     if(_ui_fsm_loadChannel(channel_index, sync_rtx) == -1)
     {
@@ -1233,6 +1432,8 @@ static void _ui_fsm_storeCurrentMemoryChannel(bool *sync_rtx)
             return;
         }
 
+        repeater_invalidateNearestCache();
+
         if(_ui_fsm_loadChannel(channel_index, sync_rtx) == -1)
         {
             _ui_announceStoreError();
@@ -1258,6 +1459,8 @@ static void _ui_fsm_storeCurrentMemoryChannel(bool *sync_rtx)
         _ui_announceStoreError();
         return;
     }
+
+    repeater_invalidateNearestCache();
 
     if(_ui_applyChannelZoneSelection(storage_index) == -1)
     {
@@ -1799,6 +2002,7 @@ static void _ui_toggleChannelScan(bool *sync_rtx)
 static void _ui_copyMemoryToVfo(const uint16_t channel_index, bool *sync_rtx)
 {
     state.bank_enabled = false;
+    state.bank_is_virtual = false;
 
     if(_ui_fsm_loadChannel(channel_index, sync_rtx) == -1)
     {
@@ -1826,7 +2030,11 @@ static int _ui_overwriteMemoryWithVfo(const uint16_t channel_index)
     if(replacement.name[0] == '\0')
         strncpy(replacement.name, channel.name, sizeof(replacement.name));
 
-    return cps_writeChannel(replacement, storage_index);
+    if(cps_writeChannel(replacement, storage_index) == -1)
+        return -1;
+
+    repeater_invalidateNearestCache();
+    return 0;
 }
 
 static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
@@ -3006,6 +3214,9 @@ void ui_updateFSM(bool *sync_rtx)
                         case CE_SCANLIST:
                             ui_state.edit_mode = true;
                             break;
+                        case CE_LOCATION:
+                            _ui_beginChannelLocationInput();
+                            break;
                         case CE_SAVE:
                             _ui_fsm_storeCurrentMemoryChannel(sync_rtx);
                             state.ui_screen = MAIN_MEM;
@@ -3022,6 +3233,37 @@ void ui_updateFSM(bool *sync_rtx)
                 else if(msg.keys & KEY_ESC)
                 {
                     _ui_cancelMemoryEditSession(sync_rtx);
+                }
+                else if((msg.keys & KEY_HASH) && (ui_state.menu_selected == CE_LOCATION))
+                {
+                    repeater_clearChannelLocation(&ui_state.memory_channel_draft);
+                }
+                break;
+            case MENU_CHANNEL_LOCATION_INPUT:
+                if(input_isNumberPressed(msg))
+                {
+                    _ui_locationInputAppendDigit(input_getPressedNumber(msg));
+                }
+                else if(msg.keys & KEY_LEFT || msg.keys & KNOB_LEFT)
+                {
+                    _ui_locationInputBackspace();
+                }
+                else if(msg.keys & KEY_RIGHT || msg.keys & KNOB_RIGHT)
+                {
+                    _ui_locationInputToggleSign();
+                }
+                else if(msg.keys & KEY_HASH)
+                {
+                    _ui_setLocationFieldValue(ui_state.channel_edit_location_field, 0);
+                    ui_state.channel_edit_location_digits = 0U;
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    state.ui_screen = MENU_CHANNEL_EDIT;
+                }
+                else if(msg.keys & KEY_ENTER)
+                {
+                    _ui_confirmChannelLocationInput();
                 }
                 break;
             case MENU_CHANNEL_FREQ_INPUT:
@@ -3090,6 +3332,7 @@ void ui_updateFSM(bool *sync_rtx)
                         }
                         else
                         {
+                            repeater_invalidateNearestCache();
                             ui_state.edit_mode = false;
                             const int16_t display_index = ui_state.memory_edit_index;
                             _ui_resetMemoryEditSession();
@@ -3232,10 +3475,14 @@ void ui_updateFSM(bool *sync_rtx)
                             ui_state.menu_selected += 1;
                         else if(ui_state.menu_selected == 1)
                         {
+                            ui_state.menu_selected += 1;
+                        }
+                        else if(ui_state.menu_selected == 2)
+                        {
                             if(cps_readBankHeader(&bank, 0) != -1)
                                 ui_state.menu_selected += 1;
                         }
-                        else if(cps_readBankHeader(&bank, ui_state.menu_selected - 1) != -1)
+                        else if(cps_readBankHeader(&bank, ui_state.menu_selected - 2) != -1)
                             ui_state.menu_selected += 1;
                     }
                     else if(state.ui_screen == MENU_CHANNEL)
@@ -3275,6 +3522,7 @@ void ui_updateFSM(bool *sync_rtx)
                         if(ui_state.menu_selected == 0)
                         {
                             state.bank_enabled = false;
+                            state.bank_is_virtual = false;
                             if(ui_state.last_main_state == MAIN_VFO)
                                 state.vfo_channel = state.channel;
                             _ui_fsm_loadChannel(0, sync_rtx);
@@ -3282,12 +3530,31 @@ void ui_updateFSM(bool *sync_rtx)
                         }
                         else if(ui_state.menu_selected == 1)
                         {
+                            state.bank_enabled = true;
+                            state.bank_is_virtual = true;
+                            state.bank = REPEATER_NEAREST_BANK;
+                            if(_ui_fsm_loadChannel(0, sync_rtx) != -1)
+                            {
+                                if(ui_state.last_main_state == MAIN_VFO)
+                                    state.vfo_channel = state.channel;
+                                state.ui_screen = MAIN_MEM;
+                            }
+                            else
+                            {
+                                state.bank_enabled = false;
+                                state.bank_is_virtual = false;
+                                state.bank = 0;
+                                vp_announceError(vpqInit);
+                            }
+                        }
+                        else if(ui_state.menu_selected == 2)
+                        {
                             _ui_prepareBankRename(-1);
                             state.ui_screen = MENU_BANK_RENAME;
                         }
                         else
                         {
-                            ui_state.bank_edit_index = ui_state.menu_selected - 2;
+                            ui_state.bank_edit_index = ui_state.menu_selected - 3;
                             ui_state.menu_selected = 0;
                             state.ui_screen = MENU_BANK_ACTION;
                         }
@@ -3301,6 +3568,7 @@ void ui_updateFSM(bool *sync_rtx)
                         {
                             case CA_OPEN:
                                 state.bank_enabled = true;
+                                state.bank_is_virtual = false;
                                 result = cps_readBankHeader(&newbank, ui_state.bank_edit_index);
                                 if(result != -1)
                                 {
@@ -4576,6 +4844,9 @@ bool ui_updateGUI()
             break;
         case MENU_CHANNEL_EDIT:
             _ui_drawMenuChannelEdit(&ui_state);
+            break;
+        case MENU_CHANNEL_LOCATION_INPUT:
+            _ui_drawMenuChannelLocationInput(&ui_state);
             break;
         case MENU_CHANNEL_FREQ_INPUT:
             _ui_drawMenuChannelFreqInput(&ui_state);

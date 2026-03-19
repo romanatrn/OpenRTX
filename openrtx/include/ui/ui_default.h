@@ -39,6 +39,7 @@ enum uiScreen
     MENU_CHANNEL,
     MENU_CHANNEL_ACTION,
     MENU_CHANNEL_EDIT,
+    MENU_CHANNEL_LOCATION_INPUT,
     MENU_CHANNEL_FREQ_INPUT,
     MENU_CHANNEL_RENAME,
     MENU_CHANNEL_DELETE,
@@ -125,6 +126,7 @@ enum channelEditItems
     CE_POWER,
     CE_ZONE,
     CE_SCANLIST,
+    CE_LOCATION,
     CE_SAVE,
     CE_DELETE,
     CE_CANCEL
@@ -322,6 +324,10 @@ typedef struct ui_state_t
     bool memory_edit_active;
     bool memory_edit_new;
     bool memory_edit_from_vfo;
+    int32_t channel_edit_latitude_e4;
+    int32_t channel_edit_longitude_e4;
+    uint8_t channel_edit_location_field;
+    uint8_t channel_edit_location_digits;
     long long scan_next_tick;
     long long scan_resume_tick;
     bool scan_was_open;

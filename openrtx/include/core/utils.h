@@ -8,8 +8,9 @@
 #define UTILS_H
 
 #include "core/datatypes.h"
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,6 +86,9 @@ uint8_t rssiToSlevel(const rssi_t rssi);
  * @return tone index or 255 if the tone has not been found
  */
 uint8_t ctcssFreqToIndex(const uint16_t freq);
+
+int sniprintf(char *str, size_t size, const char *format, ...);
+int vsniprintf(char *str, size_t size, const char *format, va_list ap);
 
 /**
  * Convert coordinates from decimal value to Q1.23 representation.

@@ -35,6 +35,7 @@ typedef struct
     channel_t  channel;
     channel_t  vfo_channel;
     bool       bank_enabled;
+    bool       bank_is_virtual;
     uint16_t   bank;
     uint8_t    rtxStatus;
     bool       tone_enabled;
