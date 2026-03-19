@@ -17,6 +17,7 @@ typedef enum
     GPS_MAP_ZOOM_REGION,
     GPS_MAP_ZOOM_TOWN,
     GPS_MAP_ZOOM_LOCAL,
+    GPS_MAP_ZOOM_STREET,
     GPS_MAP_ZOOM_NUM
 } gps_map_zoom_t;
 

@@ -1002,15 +1002,16 @@ void _ui_drawMenuGPS()
 
     if(ui_state.gps_map_enabled)
     {
-        point_t map_pos = {layout.horizontal_pad, layout.top_h + 2};
-        uint16_t map_height = CONFIG_SCREEN_HEIGHT - layout.top_h - layout.bottom_h - 4;
+        point_t map_pos = {1, (int16_t)(layout.top_h + 1)};
+        uint16_t map_width = CONFIG_SCREEN_WIDTH - 2U;
+        uint16_t map_height = CONFIG_SCREEN_HEIGHT - layout.top_h - 2U;
 
         gps_map_updateTrack(&last_state.gps_data);
 
         gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
                   color_white, "GPS Map");
         gps_map_draw(map_pos,
-                     CONFIG_SCREEN_WIDTH - (2 * layout.horizontal_pad),
+                     map_width,
                      map_height,
                      &last_state.gps_data,
                      ui_state.gps_map_zoom,
@@ -1020,7 +1021,6 @@ void _ui_drawMenuGPS()
                      color_grey,
                      color_white,
                      yellow_fab413);
-
         if(!last_state.gpsDetected)
             gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
                       color_white, currentLanguage->noGps);
@@ -1031,12 +1031,14 @@ void _ui_drawMenuGPS()
             gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
                       color_white, currentLanguage->noFix);
 
-        gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_LEFT,
+        gfx_print((point_t){(int16_t)(map_pos.x + 3), (int16_t)(map_pos.y + map_height - 8)},
+                  FONT_SIZE_5PT, TEXT_ALIGN_LEFT,
                   color_white, "%s", gps_map_getZoomLabel(ui_state.gps_map_zoom));
-        gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
+        gfx_print((point_t){(int16_t)(map_pos.x + map_width - 3), (int16_t)(map_pos.y + map_height - 8)},
+                  FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
                   color_white, "ENT=Info");
-        gfx_print((point_t){layout.horizontal_pad + 2, (int16_t)(layout.top_h + 2)},
-                  FONT_SIZE_5PT, TEXT_ALIGN_LEFT, color_white, "2/4/6/8 Pan");
+        gfx_print((point_t){(int16_t)(map_pos.x + 3), (int16_t)(map_pos.y + 3)},
+                  FONT_SIZE_5PT, TEXT_ALIGN_LEFT, color_white, "2/4/6/8");
         return;
     }
 

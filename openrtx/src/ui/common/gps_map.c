@@ -59,11 +59,20 @@ typedef struct
     uint8_t min_zoom;
 } gps_map_label_t;
 
+typedef struct
+{
+    int16_t x0;
+    int16_t y0;
+    int16_t x1;
+    int16_t y1;
+} gps_map_viewport_t;
+
 static const gps_map_zoom_info_t zoom_levels[GPS_MAP_ZOOM_NUM] = {
     {5200000, 8600000, "160km"},
     {1800000, 3000000, "60km"},
     { 520000,  760000, "20km"},
-    { 180000,  280000, "5km"}
+    { 180000,  280000, "5km"},
+    {  36000,   56000, "1km"}
 };
 
 #include "gps_map_data.inc"
@@ -80,6 +89,92 @@ static int16_t gps_map_nodes[GPS_MAP_MAX_POLY_POINTS];
 static inline int32_t abs32(int32_t value)
 {
     return (value < 0) ? -value : value;
+}
+
+static bool gps_map_pointInViewport(point_t point, const gps_map_viewport_t *viewport)
+{
+    return (point.x >= viewport->x0) && (point.x <= viewport->x1) &&
+           (point.y >= viewport->y0) && (point.y <= viewport->y1);
+}
+
+static uint8_t gps_map_outCode(point_t point, const gps_map_viewport_t *viewport)
+{
+    uint8_t code = 0U;
+
+    if(point.x < viewport->x0) code |= 1U;
+    if(point.x > viewport->x1) code |= 2U;
+    if(point.y < viewport->y0) code |= 4U;
+    if(point.y > viewport->y1) code |= 8U;
+
+    return code;
+}
+
+static bool gps_map_clipLine(point_t *start, point_t *end,
+                             const gps_map_viewport_t *viewport)
+{
+    uint8_t start_code = gps_map_outCode(*start, viewport);
+    uint8_t end_code = gps_map_outCode(*end, viewport);
+
+    while(true)
+    {
+        int32_t x;
+        int32_t y;
+        uint8_t out_code;
+
+        if((start_code | end_code) == 0U)
+            return true;
+
+        if((start_code & end_code) != 0U)
+            return false;
+
+        out_code = (start_code != 0U) ? start_code : end_code;
+
+        if((out_code & 8U) != 0U)
+        {
+            x = start->x + ((int32_t)(end->x - start->x) * (viewport->y1 - start->y)) /
+                           (end->y - start->y);
+            y = viewport->y1;
+        }
+        else if((out_code & 4U) != 0U)
+        {
+            x = start->x + ((int32_t)(end->x - start->x) * (viewport->y0 - start->y)) /
+                           (end->y - start->y);
+            y = viewport->y0;
+        }
+        else if((out_code & 2U) != 0U)
+        {
+            y = start->y + ((int32_t)(end->y - start->y) * (viewport->x1 - start->x)) /
+                           (end->x - start->x);
+            x = viewport->x1;
+        }
+        else
+        {
+            y = start->y + ((int32_t)(end->y - start->y) * (viewport->x0 - start->x)) /
+                           (end->x - start->x);
+            x = viewport->x0;
+        }
+
+        if(out_code == start_code)
+        {
+            start->x = (int16_t)x;
+            start->y = (int16_t)y;
+            start_code = gps_map_outCode(*start, viewport);
+        }
+        else
+        {
+            end->x = (int16_t)x;
+            end->y = (int16_t)y;
+            end_code = gps_map_outCode(*end, viewport);
+        }
+    }
+}
+
+static void gps_map_drawClippedLine(point_t start, point_t end,
+                                    const gps_map_viewport_t *viewport,
+                                    color_t color)
+{
+    if(gps_map_clipLine(&start, &end, viewport))
+        gfx_drawLine(start, end, color);
 }
 
 static bool gps_map_intersects(const gps_map_feature_t *feature,
@@ -276,6 +371,7 @@ static void gps_map_drawLand(point_t origin,
 static void gps_map_drawPolyline(point_t origin,
                                  uint16_t width,
                                  uint16_t height,
+                                 const gps_map_viewport_t *viewport,
                                  int32_t center_lat,
                                  int32_t center_lon,
                                  int32_t lat_span,
@@ -293,12 +389,13 @@ static void gps_map_drawPolyline(point_t origin,
         point_t end = gps_map_project(origin, width, height, center_lat,
                                       center_lon, lat_span, lon_span,
                                       feature->points[i]);
-        gfx_drawLine(start, end, color);
+        gps_map_drawClippedLine(start, end, viewport, color);
 
         if(feature->kind == GPS_MAP_FEATURE_COAST)
         {
-            gfx_drawLine((point_t){start.x, (int16_t)(start.y + 1)},
-                         (point_t){end.x, (int16_t)(end.y + 1)}, color);
+            gps_map_drawClippedLine((point_t){start.x, (int16_t)(start.y + 1)},
+                                    (point_t){end.x, (int16_t)(end.y + 1)},
+                                    viewport, color);
         }
     }
 }
@@ -306,6 +403,7 @@ static void gps_map_drawPolyline(point_t origin,
 static void gps_map_drawLabels(point_t origin,
                                uint16_t width,
                                uint16_t height,
+                               const gps_map_viewport_t *viewport,
                                int32_t center_lat,
                                int32_t center_lon,
                                int32_t lat_span,
@@ -326,8 +424,8 @@ static void gps_map_drawLabels(point_t origin,
                               lat_span, lon_span,
                               (gps_map_point_t){ map_labels[i].lat, map_labels[i].lon });
 
-        if((pos.x < (origin.x + 1)) || (pos.x > (origin.x + (int16_t)width - 28)) ||
-           (pos.y < (origin.y + 4)) || (pos.y > (origin.y + (int16_t)height - 6)))
+        if((pos.x < (viewport->x0 + 2)) || (pos.x > (viewport->x1 - 28)) ||
+           (pos.y < (viewport->y0 + 5)) || (pos.y > (viewport->y1 - 6)))
             continue;
 
         gfx_setPixel(pos, label_color);
@@ -339,6 +437,7 @@ static void gps_map_drawLabels(point_t origin,
 static void gps_map_drawTrack(point_t origin,
                               uint16_t width,
                               uint16_t height,
+                              const gps_map_viewport_t *viewport,
                               int32_t center_lat,
                               int32_t center_lon,
                               int32_t lat_span,
@@ -360,7 +459,7 @@ static void gps_map_drawTrack(point_t origin,
                                         center_lon, lat_span, lon_span, start_pt);
         point_t end = gps_map_project(origin, width, height, center_lat,
                                       center_lon, lat_span, lon_span, end_pt);
-        gfx_drawLine(start, end, color);
+        gps_map_drawClippedLine(start, end, viewport, color);
     }
 }
 
@@ -448,6 +547,12 @@ void gps_map_draw(point_t origin,
     int32_t center_lat = GPS_MAP_NS_CENTER_LAT;
     int32_t center_lon = GPS_MAP_NS_CENTER_LON;
     const gps_map_zoom_info_t *zoom_info = &zoom_levels[gps_map_clampZoom((int16_t)zoom)];
+    gps_map_viewport_t viewport = {
+        origin.x + 1,
+        origin.y + 1,
+        origin.x + (int16_t)width - 2,
+        origin.y + (int16_t)height - 2
+    };
     int32_t min_lat;
     int32_t max_lat;
     int32_t min_lon;
@@ -485,24 +590,45 @@ void gps_map_draw(point_t origin,
 
         color = gps_map_featureColor(map_features[i].kind, base_color,
                                      road_color, accent_color);
-        gps_map_drawPolyline(origin, width, height, center_lat, center_lon,
+        gps_map_drawPolyline(origin, width, height, &viewport,
+                             center_lat, center_lon,
                              zoom_info->lat_span, zoom_info->lon_span,
                              &map_features[i], color);
     }
 
-    gps_map_drawLabels(origin, width, height, center_lat, center_lon,
+    gps_map_drawLabels(origin, width, height, &viewport, center_lat, center_lon,
                        zoom_info->lat_span, zoom_info->lon_span, zoom);
 
-    gps_map_drawTrack(origin, width, height, center_lat, center_lon,
+    gps_map_drawTrack(origin, width, height, &viewport, center_lat, center_lon,
                       zoom_info->lat_span, zoom_info->lon_span, accent_color);
 
     if(gps_map_hasFix(gps))
     {
+        uint16_t marker_radius = (CONFIG_SCREEN_HEIGHT > 100) ? 4U : 3U;
         point_t pos = gps_map_project(origin, width, height, center_lat, center_lon,
                                       zoom_info->lat_span, zoom_info->lon_span,
                                       (gps_map_point_t){ gps->latitude, gps->longitude });
-        gfx_drawCircle(pos, (CONFIG_SCREEN_HEIGHT > 100) ? 4U : 3U, accent_color);
-        gfx_drawLine((point_t){pos.x - 3, pos.y}, (point_t){pos.x + 3, pos.y}, accent_color);
-        gfx_drawLine((point_t){pos.x, pos.y - 3}, (point_t){pos.x, pos.y + 3}, accent_color);
+        if(gps_map_pointInViewport(pos, &viewport))
+        {
+            if((pos.x >= (viewport.x0 + (int16_t)marker_radius)) &&
+               (pos.x <= (viewport.x1 - (int16_t)marker_radius)) &&
+               (pos.y >= (viewport.y0 + (int16_t)marker_radius)) &&
+               (pos.y <= (viewport.y1 - (int16_t)marker_radius)))
+            {
+                gfx_drawCircle(pos, marker_radius, accent_color);
+            }
+            else
+            {
+                gfx_setPixel(pos, accent_color);
+            }
+            gps_map_drawClippedLine((point_t){pos.x - 3, pos.y},
+                                    (point_t){pos.x + 3, pos.y},
+                                    &viewport, accent_color);
+            gps_map_drawClippedLine((point_t){pos.x, pos.y - 3},
+                                    (point_t){pos.x, pos.y + 3},
+                                    &viewport, accent_color);
+        }
     }
+
+    gfx_drawRect(origin, width, height, base_color, false);
 }

@@ -418,7 +418,8 @@ static int32_t _ui_gpsMapPanLatStep(uint8_t zoom)
         case GPS_MAP_ZOOM_PROVINCE: return 300000;
         case GPS_MAP_ZOOM_REGION:   return 120000;
         case GPS_MAP_ZOOM_TOWN:     return 40000;
-        default:                    return 15000;
+        case GPS_MAP_ZOOM_LOCAL:    return 15000;
+        default:                    return 4000;
     }
 }
 
@@ -429,7 +430,8 @@ static int32_t _ui_gpsMapPanLonStep(uint8_t zoom)
         case GPS_MAP_ZOOM_PROVINCE: return 420000;
         case GPS_MAP_ZOOM_REGION:   return 180000;
         case GPS_MAP_ZOOM_TOWN:     return 60000;
-        default:                    return 22000;
+        case GPS_MAP_ZOOM_LOCAL:    return 22000;
+        default:                    return 6000;
     }
 }
 
