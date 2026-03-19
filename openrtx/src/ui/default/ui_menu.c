@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include "core/utils.h"
+#include "ui/gps_map.h"
 #include "ui/ui_default.h"
 #include "interfaces/nvmem.h"
 #include "interfaces/cps_io.h"
@@ -413,66 +414,6 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
     return 0;
 }
 
-int _ui_getAPRSEntryName(char *buf, uint8_t max_len, uint8_t index)
-{
-    if(index >= settings_aprs_num)
-        return -1;
-
-    sniprintf(buf, max_len, "%s", settings_aprs_items[index]);
-    return 0;
-}
-
-int _ui_getAPRSValueName(char *buf, uint8_t max_len, uint8_t index)
-{
-    if(index >= settings_aprs_num)
-        return -1;
-
-    switch(index)
-    {
-        case APRS_ENABLED:
-            sniprintf(buf, max_len, "%s", last_state.settings.aprs_enabled ? currentLanguage->on : currentLanguage->off);
-            break;
-        case APRS_AUTO_BEACON:
-            sniprintf(buf, max_len, "%s", last_state.settings.aprs_auto_beacon ? currentLanguage->on : currentLanguage->off);
-            break;
-        case APRS_KISS:
-            sniprintf(buf, max_len, "%s", last_state.settings.aprs_kiss_enabled ? currentLanguage->on : currentLanguage->off);
-            break;
-        case APRS_SSID:
-            sniprintf(buf, max_len, "%u", last_state.settings.aprs_ssid);
-            break;
-        case APRS_INTERVAL:
-            sniprintf(buf, max_len, "%umin", last_state.settings.aprs_interval);
-            break;
-        case APRS_PATH:
-            if(strlen(last_state.settings.aprs_path) > 8)
-            {
-                char tmp[10] = {0};
-                memcpy(tmp, last_state.settings.aprs_path, 8);
-                sniprintf(buf, max_len, "%s*", tmp);
-            }
-            else
-            {
-                sniprintf(buf, max_len, "%s", last_state.settings.aprs_path);
-            }
-            break;
-        case APRS_COMMENT:
-            if(strlen(last_state.settings.aprs_comment) > 8)
-            {
-                char tmp[10] = {0};
-                memcpy(tmp, last_state.settings.aprs_comment, 8);
-                sniprintf(buf, max_len, "%s*", tmp);
-            }
-            else
-            {
-                sniprintf(buf, max_len, "%s", last_state.settings.aprs_comment);
-            }
-            break;
-    }
-
-    return 0;
-}
-
 #ifdef CONFIG_M17
 int _ui_getM17EntryName(char *buf, uint8_t max_len, uint8_t index)
 {
@@ -773,6 +714,14 @@ int _ui_getChannelActionName(char *buf, uint8_t max_len, uint8_t index)
     if((ui_state.last_main_state != MAIN_VFO) && (index >= CA_SAVE_VFO_HERE))
         item_index++;
 
+    if(item_index == CA_SCAN)
+    {
+        const bool sameChannel = (last_state.tuner_mode == CHSCAN)
+                              && (last_state.channel_index == ui_state.memory_edit_index);
+        sniprintf(buf, max_len, "%s", sameChannel ? "Stop Scan" : "Scan");
+        return 0;
+    }
+
     sniprintf(buf, max_len, "%s", channel_action_items[item_index]);
     return 0;
 }
@@ -806,38 +755,40 @@ int _ui_getContactEditValueName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
 {
+    const channel_t *channel = ui_state.memory_edit_active
+                             ? &ui_state.memory_channel_draft
+                             : &last_state.channel;
+
     if(index >= channel_edit_num) return -1;
 
     switch(index)
     {
         case CE_RENAME:
-            sniprintf(buf, max_len, "%s", last_state.channel.name);
+            sniprintf(buf, max_len, "%s", channel->name);
             return 0;
         case CE_RX_FREQ:
             sniprintf(buf, max_len, "%lu.%05lu",
-                      (unsigned long) (last_state.channel.rx_frequency / 1000000),
-                      (unsigned long) ((last_state.channel.rx_frequency % 1000000) / 10));
+                      (unsigned long) (channel->rx_frequency / 1000000),
+                      (unsigned long) ((channel->rx_frequency % 1000000) / 10));
             return 0;
         case CE_TX_FREQ:
             sniprintf(buf, max_len, "%lu.%05lu",
-                      (unsigned long) (last_state.channel.tx_frequency / 1000000),
-                      (unsigned long) ((last_state.channel.tx_frequency % 1000000) / 10));
+                      (unsigned long) (channel->tx_frequency / 1000000),
+                      (unsigned long) ((channel->tx_frequency % 1000000) / 10));
             return 0;
         case CE_MODE:
-            if(last_state.channel.mode == OPMODE_M17)
+            if(channel->mode == OPMODE_M17)
                 sniprintf(buf, max_len, "M17");
-            else if(last_state.channel.mode == OPMODE_APRS)
-                sniprintf(buf, max_len, "APRS");
             else
                 sniprintf(buf, max_len, "FM");
             return 0;
         case CE_BANDWIDTH:
-            sniprintf(buf, max_len, "%s", (last_state.channel.bandwidth == BW_12_5) ? "12.5 kHz" : "25 kHz");
+            sniprintf(buf, max_len, "%s", (channel->bandwidth == BW_12_5) ? "12.5 kHz" : "25 kHz");
             return 0;
         case CE_POWER:
             sniprintf(buf, max_len, "%lu.%01luW",
-                      (unsigned long) (last_state.channel.power / 1000),
-                      (unsigned long) ((last_state.channel.power % 1000) / 100));
+                      (unsigned long) (channel->power / 1000),
+                      (unsigned long) ((channel->power % 1000) / 100));
             return 0;
         case CE_ZONE:
             if(ui_state.channel_edit_zone < 0)
@@ -852,6 +803,12 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
                 else
                     sniprintf(buf, max_len, "None");
             }
+            return 0;
+        case CE_SCANLIST:
+            if(ui_state.channel_edit_scanlist == 0)
+                sniprintf(buf, max_len, "None");
+            else
+                sniprintf(buf, max_len, "List %u", ui_state.channel_edit_scanlist);
             return 0;
         default:
             buf[0] = '\0';
@@ -1042,6 +999,47 @@ void _ui_drawMenuGPS()
 {
     char *fix_buf, *type_buf;
     _ui_clearScreen();
+
+    if(ui_state.gps_map_enabled)
+    {
+        point_t map_pos = {layout.horizontal_pad, layout.top_h + 2};
+        uint16_t map_height = CONFIG_SCREEN_HEIGHT - layout.top_h - layout.bottom_h - 4;
+
+        gps_map_updateTrack(&last_state.gps_data);
+
+        gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                  color_white, "GPS Map");
+        gps_map_draw(map_pos,
+                     CONFIG_SCREEN_WIDTH - (2 * layout.horizontal_pad),
+                     map_height,
+                     &last_state.gps_data,
+                     ui_state.gps_map_zoom,
+                     ui_state.gps_map_manual_pan,
+                     ui_state.gps_map_center_lat,
+                     ui_state.gps_map_center_lon,
+                     color_grey,
+                     color_white,
+                     yellow_fab413);
+
+        if(!last_state.gpsDetected)
+            gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                      color_white, currentLanguage->noGps);
+        else if(!last_state.settings.gps_enabled)
+            gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                      color_white, currentLanguage->gpsOff);
+        else if(!gps_map_hasFix(&last_state.gps_data))
+            gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                      color_white, currentLanguage->noFix);
+
+        gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_LEFT,
+                  color_white, "%s", gps_map_getZoomLabel(ui_state.gps_map_zoom));
+        gfx_print(layout.bottom_pos, FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
+                  color_white, "ENT=Info");
+        gfx_print((point_t){layout.horizontal_pad + 2, (int16_t)(layout.top_h + 2)},
+                  FONT_SIZE_5PT, TEXT_ALIGN_LEFT, color_white, "2/4/6/8 Pan");
+        return;
+    }
+
     // Print "GPS" on top bar
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->gps);
@@ -1141,122 +1139,10 @@ void _ui_drawMenuGPS()
                      CONFIG_SCREEN_HEIGHT / 3,
                      last_state.gps_data.satellites,
                      last_state.gps_data.active_sats);
+    gfx_print(layout.top_pos, FONT_SIZE_5PT, TEXT_ALIGN_RIGHT,
+              color_white, "ENT=Map");
 }
 #endif
-
-void _ui_drawMenuAPRS(ui_state_t* ui_state)
-{
-    (void) ui_state;
-
-    char path_buf[16] = {0};
-    char lat_buf[18] = {0};
-    char lon_buf[18] = {0};
-    char gps_buf[22] = {0};
-    char radio_buf[22] = {0};
-    char beacon_buf[22] = {0};
-
-    const bool aprsReady = (last_state.settings.aprs_enabled == true)
-                        && (last_state.channel.mode == OPMODE_APRS);
-    const bool gpsReady = last_state.gpsDetected
-                       && last_state.settings.gps_enabled
-                       && (last_state.gps_data.fix_quality != FIX_QUALITY_NO_FIX);
-
-    _ui_clearScreen();
-    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
-              color_white, "APRS");
-    gfx_drawSymbol(layout.top_pos, layout.top_symbol_size, TEXT_ALIGN_LEFT,
-                   gpsReady ? yellow_fab413 : color_white,
-                   gpsReady ? SYMBOL_CROSSHAIRS_GPS : SYMBOL_CROSSHAIRS);
-
-    point_t card_pos = {layout.horizontal_pad, layout.top_h + 2};
-    uint16_t card_w = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
-    uint16_t card_h = CONFIG_SCREEN_HEIGHT - layout.top_h - layout.bottom_h - 6;
-    gfx_drawRect(card_pos, card_w, card_h, color_grey, false);
-
-    if(strlen(last_state.settings.aprs_path) > 12)
-    {
-        memcpy(path_buf, last_state.settings.aprs_path, 12);
-        strcpy(path_buf + 12, "...");
-    }
-    else
-    {
-        sniprintf(path_buf, sizeof(path_buf), "%s", last_state.settings.aprs_path);
-    }
-
-    if(gpsReady)
-    {
-        const int32_t latitude = abs(last_state.gps_data.latitude);
-        const int32_t longitude = abs(last_state.gps_data.longitude);
-        const char latDir = (last_state.gps_data.latitude < 0) ? 'S' : 'N';
-        const char lonDir = (last_state.gps_data.longitude < 0) ? 'W' : 'E';
-
-        sniprintf(lat_buf, sizeof(lat_buf), "%c %d.%06d",
-                  latDir,
-                  (int) (latitude / 1000000),
-                  (int) (latitude % 1000000));
-        sniprintf(lon_buf, sizeof(lon_buf), "%c %d.%06d",
-                  lonDir,
-                  (int) (longitude / 1000000),
-                  (int) (longitude % 1000000));
-        sniprintf(gps_buf, sizeof(gps_buf), "%u sats  %dkm/h",
-                  (unsigned int) last_state.gps_data.active_sats,
-                  last_state.gps_data.speed);
-    }
-    else if(last_state.gpsDetected == false)
-    {
-        sniprintf(gps_buf, sizeof(gps_buf), "No GPS detected");
-    }
-    else if(last_state.settings.gps_enabled == false)
-    {
-        sniprintf(gps_buf, sizeof(gps_buf), "GPS disabled");
-    }
-    else
-    {
-        sniprintf(gps_buf, sizeof(gps_buf), "Waiting for fix");
-    }
-
-    sniprintf(radio_buf, sizeof(radio_buf), "%s  %s",
-              aprsReady ? "APRS live" : "FM channel",
-              last_state.settings.aprs_kiss_enabled ? "KISS" : "Radio");
-    sniprintf(beacon_buf, sizeof(beacon_buf), "%s  %u min",
-              last_state.settings.aprs_auto_beacon ? "Auto beacon" : "Manual beacon",
-              last_state.settings.aprs_interval);
-
-    gfx_printLine(1, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                  layout.horizontal_pad + 2, layout.menu_font,
-                  TEXT_ALIGN_CENTER, yellow_fab413, "%s", radio_buf);
-    gfx_printLine(2, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                  layout.horizontal_pad + 2, layout.menu_font,
-                  TEXT_ALIGN_CENTER, color_white, "%s", beacon_buf);
-    gfx_printLine(3, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                  layout.horizontal_pad + 2, layout.menu_font,
-                  TEXT_ALIGN_CENTER, gpsReady ? color_white : yellow_fab413,
-                  "%s", gps_buf);
-
-    if(gpsReady)
-    {
-        gfx_printLine(4, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                      layout.horizontal_pad + 2, layout.menu_font,
-                      TEXT_ALIGN_CENTER, color_white, "%s", lat_buf);
-        gfx_printLine(5, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                      layout.horizontal_pad + 2, layout.menu_font,
-                      TEXT_ALIGN_CENTER, color_white, "%s", lon_buf);
-    }
-    else
-    {
-        gfx_printLine(4, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                      layout.horizontal_pad + 2, layout.menu_font,
-                      TEXT_ALIGN_CENTER, color_white, "Path %s", path_buf);
-        gfx_printLine(5, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                      layout.horizontal_pad + 2, layout.menu_font,
-                      TEXT_ALIGN_CENTER, color_white, "Enable GPS for live coords");
-    }
-
-    gfx_printLine(6, 6, card_pos.y + 2, card_pos.y + card_h - 2,
-                  layout.horizontal_pad + 2, layout.menu_font,
-                  TEXT_ALIGN_CENTER, yellow_fab413,
-                  aprsReady ? "Enter beacon now   > config" : "Switch mode to APRS   > config");
-}
 
 void _ui_drawMenuSettings(ui_state_t* ui_state)
 {
@@ -1653,42 +1539,6 @@ void _ui_drawSettingsRadio(ui_state_t* ui_state)
     }
 }
 
-void _ui_drawSettingsAPRS(ui_state_t* ui_state)
-{
-    _ui_clearScreen();
-    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
-              color_white, "APRS");
-
-    if((ui_state->edit_mode) && (ui_state->menu_selected == APRS_PATH))
-    {
-        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
-        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
-        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
-                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
-        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
-        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
-                      layout.horizontal_pad, layout.menu_font,
-                      TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_aprs_path);
-    }
-    else if((ui_state->edit_mode) && (ui_state->menu_selected == APRS_COMMENT))
-    {
-        uint16_t rect_width = CONFIG_SCREEN_WIDTH - (layout.horizontal_pad * 2);
-        uint16_t rect_height = (CONFIG_SCREEN_HEIGHT - (layout.top_h + layout.bottom_h))/2;
-        point_t rect_origin = {(CONFIG_SCREEN_WIDTH - rect_width) / 2,
-                               (CONFIG_SCREEN_HEIGHT - rect_height) / 2};
-        gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
-        gfx_printLine(1, 1, layout.top_h, CONFIG_SCREEN_HEIGHT - layout.bottom_h,
-                      layout.horizontal_pad, layout.message_font,
-                      TEXT_ALIGN_CENTER, color_white, "%s", ui_state->new_aprs_comment);
-    }
-    else
-    {
-        _ui_drawMenuListValue(ui_state, ui_state->menu_selected,
-                              _ui_getAPRSEntryName,
-                              _ui_getAPRSValueName);
-    }
-}
-
 void _ui_drawMacroTop()
 {
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
@@ -1837,9 +1687,6 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
             gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "          M17");
             break;
 #endif
-        case OPMODE_APRS:
-            gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER, color_white, "         APRS");
-            break;
     }
 
 #if defined(CONFIG_UI_NO_KEYBOARD)

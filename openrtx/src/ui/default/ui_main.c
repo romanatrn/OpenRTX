@@ -23,22 +23,6 @@ void _ui_drawMainBackground()
     gfx_drawHLine(CONFIG_SCREEN_HEIGHT - layout.bottom_h - 1, layout.hline_h, color_grey);
 }
 
-static void _ui_drawAprsIndicator(ui_state_t *ui_state)
-{
-    if(last_state.settings.aprs_enabled == false)
-        return;
-
-    point_t label_pos = {layout.horizontal_pad, layout.top_pos.y - 2};
-    if(ui_state->input_locked)
-        label_pos.x += 14;
-
-    color_t label_color = (last_state.channel.mode == OPMODE_APRS)
-                        ? yellow_fab413
-                        : color_white;
-
-    gfx_print(label_pos, FONT_SIZE_6PT, TEXT_ALIGN_LEFT, label_color, "APRS");
-}
-
 void _ui_drawMainTop(ui_state_t * ui_state)
 {
 #ifdef CONFIG_RTC
@@ -71,8 +55,6 @@ void _ui_drawMainTop(ui_state_t * ui_state)
     if (ui_state->input_locked == true)
       gfx_drawSymbol(layout.top_pos, layout.top_symbol_size, TEXT_ALIGN_LEFT,
                      color_white, SYMBOL_LOCK);
-
-    _ui_drawAprsIndicator(ui_state);
 }
 
 void _ui_drawBankChannel()
@@ -129,7 +111,9 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
             if(last_state.fm_reverse)
                 strcat(status_str, " R");
             if(last_state.tuner_mode == SCAN)
-                strcat(status_str, " S");
+                strcat(status_str, " VS");
+            else if(last_state.tuner_mode == CHSCAN)
+                strcat(status_str, " CS");
 
             // Print Bandwidth, Tone and encdec info
             if (tone_tx_enable || tone_rx_enable)
@@ -145,11 +129,6 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
                 gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                           color_white, "%s%s", bw_str, status_str);
             }
-            break;
-
-        case OPMODE_APRS:
-            gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-                      color_white, "APRS");
             break;
 
         case OPMODE_DMR:
@@ -346,15 +325,6 @@ void _ui_drawMainBottom()
                            volume,
                            true,
                            yellow_fab413);
-            break;
-        case OPMODE_APRS:
-            gfx_drawSmeterLevel(meter_pos,
-                                meter_width,
-                                meter_height,
-                                rssi,
-                                mic_level,
-                                volume,
-                                true);
             break;
         case OPMODE_DMR:
 #if defined(PLATFORM_MDUV3x0) && defined(CONFIG_M17)

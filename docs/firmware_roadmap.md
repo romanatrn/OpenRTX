@@ -137,9 +137,9 @@ For many users, analog FM quality and completeness define whether the firmware
 
 ### VOX note
 
-`voxLevel` exists in persistent settings, but runtime behavior does not appear
- wired. This is a good example of a feature that can likely be completed with
- limited UI cost if the audio path and PTT gating are approached carefully.
+Basic FM VOX runtime support is now in place. The next work here is exposing
+ clear user controls, validating thresholds per target, and deciding whether
+ related protections like BCLO should become configurable.
 
 ## 4. End-to-End Backup and Restore
 
@@ -154,9 +154,8 @@ This improves user trust immediately. Once users start relying on memory editing
 - backend transport in `openrtx/src/core/backup.c`
 - state flags in `openrtx/include/core/state.h`
 
-### Missing glue
+### Remaining glue
 
-- runtime orchestration in the device state machine
 - progress UX
 - transport/error reporting
 - safe restore sequencing and post-restore restart behavior

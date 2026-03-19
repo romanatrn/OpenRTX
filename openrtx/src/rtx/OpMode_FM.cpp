@@ -7,6 +7,7 @@
 #include "interfaces/platform.h"
 #include "interfaces/delays.h"
 #include "interfaces/radio.h"
+#include "core/state.h"
 #include "rtx/OpMode_FM.hpp"
 #include "rtx/rtx.h"
 
@@ -37,7 +38,17 @@ void _setVolume()
 }
 #endif
 
-OpMode_FM::OpMode_FM() : rfSqlOpen(false), sqlOpen(false), enterRx(true)
+static bool voxTriggered()
+{
+    if(state.settings.voxLevel == 0)
+        return false;
+
+    const uint16_t threshold = state.settings.voxLevel * 16;
+    return platform_getMicLevel() >= threshold;
+}
+
+OpMode_FM::OpMode_FM() : rfSqlOpen(false), sqlOpen(false), enterRx(true),
+                         voxActive(false), voxHangUntil(0)
 {
 }
 
@@ -51,6 +62,8 @@ void OpMode_FM::enable()
     rfSqlOpen = false;
     sqlOpen   = false;
     enterRx   = true;
+    voxActive = false;
+    voxHangUntil = 0;
 }
 
 void OpMode_FM::disable()
@@ -64,6 +77,8 @@ void OpMode_FM::disable()
     rfSqlOpen = false;
     sqlOpen   = false;
     enterRx   = false;
+    voxActive = false;
+    voxHangUntil = 0;
 }
 
 void OpMode_FM::update(rtxStatus_t *const status, const bool newCfg)
@@ -115,9 +130,23 @@ void OpMode_FM::update(rtxStatus_t *const status, const bool newCfg)
         enterRx = false;
     }
 
+    const long long now = getTick();
+    const bool hwPtt = platform_getPttStatus();
+    const bool voxTrip = voxTriggered();
+    const bool wantTx = hwPtt || voxActive || voxTrip;
+
+    if(voxTrip)
+    {
+        voxActive = true;
+        voxHangUntil = now + 600;
+    }
+    else if(voxActive && (now >= voxHangUntil) && (hwPtt == false))
+    {
+        voxActive = false;
+    }
+
     // TX logic
-    if(platform_getPttStatus() && (status->opStatus != TX) &&
-                                  (status->txDisable == 0))
+    if(wantTx && (status->opStatus != TX) && (status->txDisable == 0))
     {
         audioPath_release(rxAudioPath);
         radio_disableRtx();
@@ -128,7 +157,7 @@ void OpMode_FM::update(rtxStatus_t *const status, const bool newCfg)
         status->opStatus = TX;
     }
 
-    if(!platform_getPttStatus() && (status->opStatus == TX))
+    if((wantTx == false) && (status->opStatus == TX))
     {
         audioPath_release(txAudioPath);
         radio_disableRtx();
@@ -136,6 +165,7 @@ void OpMode_FM::update(rtxStatus_t *const status, const bool newCfg)
         status->opStatus = OFF;
         enterRx = true;
         sqlOpen = false;  // Force squelch to be redetected.
+        voxActive = false;
     }
 
     // Led control logic

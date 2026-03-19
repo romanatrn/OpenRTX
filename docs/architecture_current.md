@@ -93,8 +93,8 @@ Key fields:
 
 Observations:
 
-- The state model already anticipates scan and flash transfer workflows.
-- Some modeled features are not yet fully implemented in runtime behavior.
+- The state model now participates in scan control and flash transfer orchestration.
+- Some modeled features are still only partially surfaced in UI workflows.
 
 ### Persistent settings
 
@@ -288,11 +288,11 @@ The next architectural test opportunity is cross-layer integration:
 
 ## Current Architectural Friction Points
 
-- some latent features exist in the model but not in runtime implementation
+- some latent features still exist in the model without full product polish
 - UI state machine carries a lot of feature-specific complexity
-- backup/restore flow is split across UI and backend without the middle layer
+- backup/restore now has runtime orchestration, but still needs stronger UX and error handling
 - DMR has structural presence without runtime ownership
-- some settings exist without active behavior, such as VOX
+- some settings still need stronger UI and validation, despite new runtime hooks such as VOX
 
 ## Recommended Use Of This Document
 

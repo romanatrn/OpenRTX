@@ -48,7 +48,6 @@ enum uiScreen
     MENU_CONTACT_RENAME,
     MENU_GAMES,
     MENU_GPS,
-    MENU_APRS,
     MENU_SETTINGS,
     MENU_BACKUP_RESTORE,
     MENU_BACKUP,
@@ -61,7 +60,6 @@ enum uiScreen
     SETTINGS_DISPLAY,
     SETTINGS_GPS,
     SETTINGS_RADIO,
-    SETTINGS_APRS,
     SETTINGS_M17,
     SETTINGS_FM,
     SETTINGS_ACCESSIBILITY,
@@ -82,7 +80,6 @@ enum menuItems
 {
     M_BANK = 0,
     M_CHANNEL,
-    M_APRS,
     M_CONTACTS,
     M_GAMES,
 #ifdef CONFIG_GPS
@@ -103,7 +100,6 @@ enum settingsItems
     S_GPS,
 #endif
     S_RADIO,
-    S_APRS,
 #ifdef CONFIG_M17
     S_M17,
 #endif
@@ -128,6 +124,7 @@ enum channelEditItems
     CE_BANDWIDTH,
     CE_POWER,
     CE_ZONE,
+    CE_SCANLIST,
     CE_SAVE,
     CE_DELETE,
     CE_CANCEL
@@ -138,6 +135,7 @@ enum channelActionItems
     CA_OPEN = 0,
     CA_EDIT,
     CA_COPY_TO_VFO,
+    CA_SCAN,
     CA_SAVE_VFO_HERE,
     CA_DELETE
 };
@@ -225,17 +223,6 @@ enum settingsM17Items
     M17_KEY_4
 };
 
-enum settingsAPRSItems
-{
-    APRS_ENABLED = 0,
-    APRS_AUTO_BEACON,
-    APRS_KISS,
-    APRS_SSID,
-    APRS_INTERVAL,
-    APRS_PATH,
-    APRS_COMMENT
-};
-
 enum settingsFMItems
 {
     FM_RX_TONE,
@@ -321,19 +308,28 @@ typedef struct ui_state_t
     char new_time_buf[9];
 #endif
     char new_callsign[10];
-    char new_aprs_path[24];
-    char new_aprs_comment[32];
     char new_channel_name[CPS_STR_SIZE];
     freq_t new_shift;
     uint16_t new_ppm;
     int8_t new_ppm_sign;
+    channel_t memory_channel_backup;
+    channel_t memory_channel_draft;
     int16_t memory_edit_index;
     int16_t channel_edit_zone;
+    uint8_t channel_edit_scanlist;
     int16_t bank_edit_index;
     int16_t contact_edit_index;
+    bool memory_edit_active;
+    bool memory_edit_new;
+    bool memory_edit_from_vfo;
     long long scan_next_tick;
     long long scan_resume_tick;
     bool scan_was_open;
+    uint8_t gps_map_zoom;
+    bool gps_map_enabled;
+    bool gps_map_manual_pan;
+    int32_t gps_map_center_lat;
+    int32_t gps_map_center_lon;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)
@@ -351,7 +347,6 @@ extern const char *settings_items[];
 extern const char *display_items[];
 extern const char *settings_gps_items[];
 extern const char *settings_radio_items[];
-extern const char *settings_aprs_items[];
 extern const char *settings_m17_items[];
 extern const char *settings_fm_items[];
 extern const char * settings_accessibility_items[];
@@ -368,7 +363,6 @@ extern const uint8_t settings_num;
 extern const uint8_t display_num;
 extern const uint8_t settings_gps_num;
 extern const uint8_t settings_radio_num;
-extern const uint8_t settings_aprs_num;
 extern const uint8_t settings_m17_num;
 extern const uint8_t settings_fm_num;
 extern const uint8_t settings_accessibility_num;

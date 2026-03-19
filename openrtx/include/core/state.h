@@ -47,7 +47,7 @@ typedef struct
     bool       backup_eflash;
     bool       restore_eflash;
     bool       txDisable;
-    bool       aprs_send_beacon;
+    bool       rtx_sync_pending;
     bool       fm_monitor;
     bool       fm_reverse;
     uint8_t    step_index;
@@ -107,6 +107,16 @@ void state_task();
  * @return 0 on success, -1 on failure.
  */
 int state_saveSettings();
+
+/**
+ * Request that the UI thread synchronises the latest state into the RTX layer.
+ */
+void state_requestRtxSync();
+
+/**
+ * Clear and return the pending RTX sync request flag.
+ */
+bool state_consumeRtxSync();
 
 /**
  * Reset the fields of radio state containing user settings and VFO channel.

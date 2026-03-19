@@ -320,10 +320,20 @@ void M17Demodulator::reset()
     frameIndex  = 0;
     sampleCount = 0;
     newFrame    = false;
+    missedSyncs = 0;
+    resetClockRec = false;
+    updateSampPoint = false;
+    samplingPoint = 0;
+    corrThreshold = 0.0f;
     demodState  = DemodState::INIT;
     initCount   = RX_SAMPLE_RATE / 50;  // 50ms of init time
 
     dsp_resetState(dcBlock);
+    clockRec.reset();
+    correlator = decltype(correlator)();
+    streamSync = decltype(streamSync)({ -3, -3, -3, -3, +3, +3, -3, +3 });
+    sampleFilter.reset();
+    devEstimator.init({3, -3});
 }
 
 void M17Demodulator::unlockedState()

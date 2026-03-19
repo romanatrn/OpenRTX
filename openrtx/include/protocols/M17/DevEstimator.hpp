@@ -8,6 +8,7 @@
 #define DEV_ESTIMATOR_H
 
 #include <cstdint>
+#include <utility>
 
 /**
  * Symbol deviation estimator.
@@ -66,8 +67,8 @@ public:
         }
 
         if (value < negThresh) {
-            posAccum += value;
-            posCnt += 1;
+            negAccum += value;
+            negCnt += 1;
         }
     }
 

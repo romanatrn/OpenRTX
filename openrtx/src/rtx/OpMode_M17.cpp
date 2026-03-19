@@ -33,7 +33,8 @@ OpMode_M17::OpMode_M17() : startRx(false), startTx(false), locked(false),
                            invertTxPhase(false), invertRxPhase(false),
                            gpsTimer(0), txFrameNumber(0)
 {
-
+    rxAudioPath = -1;
+    txAudioPath = -1;
 }
 
 OpMode_M17::~OpMode_M17()
@@ -49,6 +50,8 @@ void OpMode_M17::enable()
     locked       = false;
     dataValid    = false;
     extendedCall = false;
+    rxAudioPath  = -1;
+    txAudioPath  = -1;
     txFrameNumber = 0;
     startRx      = true;
     startTx      = false;
@@ -62,6 +65,8 @@ void OpMode_M17::disable()
     platform_ledOff(RED);
     audioPath_release(rxAudioPath);
     audioPath_release(txAudioPath);
+    rxAudioPath = -1;
+    txAudioPath = -1;
     codec_terminate();
     radio_disableRtx();
     modulator.terminate();
@@ -143,6 +148,7 @@ void OpMode_M17::offState(rtxStatus_t *const status)
 
     codec_stop(txAudioPath);
     audioPath_release(txAudioPath);
+    txAudioPath = -1;
 
     if(startRx)
     {
@@ -261,8 +267,10 @@ void OpMode_M17::rxState(rtxStatus_t *const status)
                     pthSts = audioPath_getStatus(rxAudioPath);
                 }
 
-                // Extract audio data and sent it to codec
-                if((type == M17FrameType::STREAM) && (pthSts == PATH_OPEN))
+                // Extract audio data and send it to codec
+                if((type == M17FrameType::STREAM)
+                   && (streamType.fields.dataType != M17_DATATYPE_DATA)
+                   && (pthSts == PATH_OPEN))
                 {
                     // (re)start codec2 module if not already up
                     if(codec_running() == false)
@@ -318,6 +326,7 @@ void OpMode_M17::rxState(rtxStatus_t *const status)
         metaText.reset();
         codec_stop(rxAudioPath);
         audioPath_release(rxAudioPath);
+        rxAudioPath = -1;
     }
 }
 
@@ -335,10 +344,7 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         uint8_t keyIndex = 0;
         std::array<uint8_t, 16> key;
         size_t keyLen = 0;
-        bool encryptionActive = resolveEncryptionConfig(encType, encSubType, keyIndex)
-                             && (encType != M17_ENCRYPTION_NONE)
-                             && loadKeySlot(keyIndex, key, keyLen);
-
+        bool encryptionActive = false;
         lsf.clear();
         lsf.setSource(status->source_address);
 
@@ -349,8 +355,11 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         streamType_t type = {};
         type.fields.dataMode = M17_DATAMODE_STREAM;     // Stream
         type.fields.dataType = M17_DATATYPE_VOICE;      // Voice data
-        if(encryptionActive)
+        if(resolveEncryptionConfig(encType, encSubType, keyIndex)
+           && (encType != M17_ENCRYPTION_NONE)
+           && loadKeySlot(keyIndex, key, keyLen))
         {
+            encryptionActive = true;
             type.fields.encType = static_cast<M17EncyptionType>(encType);
             type.fields.encSubType = static_cast<M17MetaType>(encSubType);
         }
@@ -402,6 +411,7 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         modulator.sendPreamble();
         modulator.sendFrame(m17Frame);
     }
+
     payload_t dataFrame;
     bool      lastFrame = false;
 
@@ -468,6 +478,7 @@ void OpMode_M17::txState(rtxStatus_t *const status)
         encoder.encodeEotFrame(m17Frame);
         modulator.sendFrame(m17Frame);
         modulator.stop();
+        txAudioPath = -1;
     }
 }
 

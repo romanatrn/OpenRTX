@@ -133,10 +133,6 @@ void vp_announceRadioMode(const uint8_t mode, const vpQueueFlags_t flags)
             vp_queueStringTableEntry(&currentLanguage->fm);
             break;
 
-        case OPMODE_APRS:
-            vp_queueString("APRS", vpAnnounceCommonSymbols);
-            break;
-
         case OPMODE_M17:
             vp_queueStringTableEntry(&currentLanguage->m17);
             break;
@@ -237,10 +233,6 @@ void vp_announceChannelSummary(const channel_t* channel,
                                      localFlags);
                 }
             }
-                break;
-
-            case OPMODE_APRS:
-                vp_queueString("APRS", vpAnnounceCommonSymbols);
                 break;
 
             case OPMODE_M17:

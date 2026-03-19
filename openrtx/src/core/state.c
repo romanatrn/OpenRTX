@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "core/event.h"
+#include "core/scan.h"
 #include "core/state.h"
 #include "core/battery.h"
 #include "hwconfig.h"
@@ -67,7 +68,7 @@ void state_init()
     state.rtxStatus     = RTX_OFF;
     state.emergency     = false;
     state.txDisable     = false;
-    state.aprs_send_beacon = false;
+    state.rtx_sync_pending = false;
     state.fm_monitor    = false;
     state.fm_reverse    = false;
     state.step_index    = 4; // Default frequency step 12.5kHz
@@ -79,6 +80,7 @@ void state_init()
     }
 
     lastPersistedSettings = state.settings;
+    scan_reset();
 }
 
 void state_terminate()
@@ -102,6 +104,25 @@ int state_saveSettings()
 
     lastPersistedSettings = settingsCopy;
     return 0;
+}
+
+void state_requestRtxSync()
+{
+    pthread_mutex_lock(&state_mutex);
+    state.rtx_sync_pending = true;
+    pthread_mutex_unlock(&state_mutex);
+}
+
+bool state_consumeRtxSync()
+{
+    bool pending;
+
+    pthread_mutex_lock(&state_mutex);
+    pending = state.rtx_sync_pending;
+    state.rtx_sync_pending = false;
+    pthread_mutex_unlock(&state_mutex);
+
+    return pending;
 }
 
 void state_task()
@@ -141,6 +162,20 @@ void state_task()
 
     state.charge = battery_getCharge(state.v_bat);
     state.rssi = rtx_getRssi();
+    switch(rtx_getCurrentStatus().opStatus)
+    {
+        case RX:
+            state.rtxStatus = RTX_RX;
+            break;
+
+        case TX:
+            state.rtxStatus = RTX_TX;
+            break;
+
+        default:
+            state.rtxStatus = RTX_OFF;
+            break;
+    }
 
     #ifdef CONFIG_RTC
     state.time = platform_getCurrentTime();
@@ -148,6 +183,7 @@ void state_task()
 
     pthread_mutex_unlock(&state_mutex);
 
+    scan_task();
     ui_pushEvent(EVENT_STATUS, 0);
 }
 

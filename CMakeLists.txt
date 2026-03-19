@@ -88,11 +88,14 @@ target_sources(app
     openrtx/src/core/queue.c
     openrtx/src/core/chan.c
     openrtx/src/core/gps.c
+    openrtx/src/core/scan.c
     openrtx/src/core/dsp.cpp
     openrtx/src/core/cps.c
     openrtx/src/core/crc.c
     openrtx/src/core/datetime.c
     openrtx/src/core/openrtx.c
+    openrtx/src/core/backup.c
+    openrtx/src/core/xmodem.c
     openrtx/src/core/audio_codec.c
     openrtx/src/core/audio_stream.c
     openrtx/src/core/audio_path.cpp
@@ -102,6 +105,7 @@ target_sources(app
     openrtx/src/core/voicePromptUtils.c
     openrtx/src/core/voicePromptData.S
     openrtx/src/core/nvmem_access.c
+    openrtx/src/ui/common/gps_map.c
     openrtx/src/rtx/rtx.cpp
     openrtx/src/rtx/OpMode_FM.cpp
     openrtx/src/rtx/OpMode_M17.cpp

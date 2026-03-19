@@ -59,15 +59,6 @@ typedef struct
     uint8_t m17_default_enc_subtype;         // M17 default encryption subtype
     uint8_t m17_default_key_index;           // M17 default key slot (1-based, 0 disabled)
     char    m17_keys[M17_KEY_SLOTS][M17_KEY_HEX_LEN + 1]; // M17 key slots as hex strings
-    bool    aprs_enabled;         // APRS mode enabled
-    bool    aprs_auto_beacon;     // Automatic APRS position beacon
-    bool    aprs_kiss_enabled;    // USB KISS TNC enabled
-    uint8_t aprs_ssid;            // APRS SSID
-    uint8_t aprs_interval;        // Beacon interval in minutes
-    char    aprs_symbol_table;    // APRS symbol table identifier
-    char    aprs_symbol_code;     // APRS symbol identifier
-    char    aprs_path[24];        // APRS path list
-    char    aprs_comment[32];     // APRS comment text
     int16_t ppm_offset;           // Frequency offset for tuning (in tenth of ppm)
     uint16_t snake_high_score;    // Best Snake score
     uint16_t tetris_high_score;   // Best Tetris score
@@ -105,15 +96,6 @@ static const settings_t default_settings =
     0,
     0,
     { "", "", "", "" },
-    false,
-    false,
-    false,
-    9,
-    10,
-    '/',
-    '[',
-    "WIDE1-1,WIDE2-1",
-    "OpenRTX APRS",
     0,
     0,
     0,

@@ -32,7 +32,8 @@ static pthread_t        codecThread;
 static pthread_attr_t   codecAttr;
 static pthread_mutex_t  data_mutex  = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t  init_mutex  = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t   wakeup_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t   data_ready_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t   space_ready_cond = PTHREAD_COND_INITIALIZER;
 
 static uint8_t          readPos;
 static uint8_t          writePos;
@@ -52,20 +53,34 @@ static void *decodeFunc(void *arg);
 static bool startThread(const pathId path, void *(*func) (void *));
 static void stopThread();
 
+static inline int16_t saturateS16(int32_t sample)
+{
+    if(sample > 32767)
+        return 32767;
+    if(sample < -32768)
+        return -32768;
+
+    return sample;
+}
+
 
 void codec_init()
 {
     pthread_mutex_lock(&init_mutex);
     initCnt += 1;
-    pthread_mutex_unlock(&init_mutex);
-
-    if(initCnt > 0)
+    if(initCnt > 1)
+    {
+        pthread_mutex_unlock(&init_mutex);
         return;
+    }
 
     running     = false;
     readPos     = 0;
     writePos    = 0;
     numElements = 0;
+    reqStop     = false;
+
+    pthread_mutex_unlock(&init_mutex);
 }
 
 void codec_terminate()
@@ -114,20 +129,22 @@ int codec_popFrame(uint8_t *frame, const bool blocking)
 
     uint64_t element;
 
-    // No data available and non-blocking call: just return false.
-    if((numElements == 0) && (blocking == false))
-        return -EAGAIN;
-
-    // Blocking call: wait until some data is pushed
     pthread_mutex_lock(&data_mutex);
+    if((numElements == 0) && (blocking == false))
+    {
+        pthread_mutex_unlock(&data_mutex);
+        return -EAGAIN;
+    }
+
     while(numElements == 0)
     {
-        pthread_cond_wait(&wakeup_cond, &data_mutex);
+        pthread_cond_wait(&data_ready_cond, &data_mutex);
     }
 
     element      = dataBuffer[readPos];
     readPos      = (readPos + 1) % BUF_SIZE;
     numElements -= 1;
+    pthread_cond_signal(&space_ready_cond);
     pthread_mutex_unlock(&data_mutex);
 
     // Do memcpy after mutex unlock to reduce execution time spent inside the
@@ -147,22 +164,23 @@ int codec_pushFrame(const uint8_t *frame, const bool blocking)
     uint64_t element;
     memcpy(&element, frame, 8);
 
-
-    // No space available and non-blocking call: return
-    if((numElements >= BUF_SIZE) && (blocking == false))
-        return -EAGAIN;
-
-    // Blocking call: wait until there is some free space
     pthread_mutex_lock(&data_mutex);
+    if((numElements >= BUF_SIZE) && (blocking == false))
+    {
+        pthread_mutex_unlock(&data_mutex);
+        return -EAGAIN;
+    }
+
     while(numElements >= BUF_SIZE)
     {
-        pthread_cond_wait(&wakeup_cond, &data_mutex);
+        pthread_cond_wait(&space_ready_cond, &data_mutex);
     }
 
     // There is free space, push data into the queue
     dataBuffer[writePos] = element;
     writePos = (writePos + 1) % BUF_SIZE;
     numElements += 1;
+    pthread_cond_signal(&data_ready_cond);
 
     pthread_mutex_unlock(&data_mutex);
     return 0;
@@ -207,7 +225,7 @@ static void *encodeFunc(void *arg)
             int16_t sample;
 
             sample = dsp_dcBlockFilter(&dcBlock, audio.data[i]);
-            audio.data[i] = sample * micGain;
+            audio.data[i] = saturateS16(sample * micGain);
         }
         #endif
 
@@ -224,13 +242,13 @@ static void *encodeFunc(void *arg)
         if(numElements >= BUF_SIZE)
         {
             readPos = (readPos + 1) % BUF_SIZE;
+            pthread_cond_signal(&space_ready_cond);
         }
 
         dataBuffer[writePos] = frame;
         writePos = (writePos + 1) % BUF_SIZE;
 
-        if(numElements == 0)
-            pthread_cond_signal(&wakeup_cond);
+        pthread_cond_signal(&data_ready_cond);
 
         if(numElements < BUF_SIZE)
             numElements += 1;
@@ -293,7 +311,7 @@ static void *decodeFunc(void *arg)
             frame        = dataBuffer[readPos];
             readPos      = (readPos + 1) % BUF_SIZE;
             if(numElements >= BUF_SIZE)
-                pthread_cond_signal(&wakeup_cond);
+                pthread_cond_signal(&space_ready_cond);
 
             numElements -= 1;
             newData      = true;
@@ -311,7 +329,8 @@ static void *decodeFunc(void *arg)
 
             #ifdef PLATFORM_MD3x0
             // Bump up volume a little bit, as on MD3x0 is quite low
-            for(size_t i = 0; i < 160; i++) audioBuf[i] *= 2;
+            for(size_t i = 0; i < 160; i++)
+                audioBuf[i] = saturateS16(audioBuf[i] * 2);
             #endif
 
         }
@@ -405,6 +424,10 @@ static bool startThread(const pathId path, void *(*func) (void *))
 static void stopThread()
 {
     reqStop = true;
+    pthread_mutex_lock(&data_mutex);
+    pthread_cond_broadcast(&data_ready_cond);
+    pthread_cond_broadcast(&space_ready_cond);
+    pthread_mutex_unlock(&data_mutex);
     pthread_join(codecThread, NULL);
     running = false;
 

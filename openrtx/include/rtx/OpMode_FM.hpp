@@ -80,6 +80,8 @@ private:
     bool   rfSqlOpen;   ///< Flag for RF squelch status (analog squelch).
     bool   sqlOpen;     ///< Flag for squelch status.
     bool   enterRx;     ///< Flag for RX management.
+    bool   voxActive;   ///< Flag for VOX-triggered TX.
+    long long voxHangUntil; ///< VOX hang time deadline.
     pathId rxAudioPath; ///< Audio path ID for RX
     pathId txAudioPath; ///< Audio path ID for TX
 };

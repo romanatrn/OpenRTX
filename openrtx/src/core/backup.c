@@ -5,9 +5,9 @@
  */
 
 #include "core/backup.h"
+#include "core/nvmem_access.h"
 #include "core/xmodem.h"
 #include <string.h>
-#include "drivers/NVM/W25Qx.h"
 
 #if defined(PLATFORM_GD77) || defined(PLATFORM_DM1801)
 static const size_t EFLASH_SIZE = 1024*1024;    // 1 MB
@@ -20,7 +20,8 @@ size_t  memAddr = 0;
 static int getDataCallback(uint8_t *ptr, size_t size)
 {
     if((memAddr + size) > EFLASH_SIZE) return -1;
-    W25Qx_readData(memAddr, ptr, size);
+    if(nvm_read(0, 0, memAddr, ptr, size) < 0)
+        return -1;
     memAddr += size;
     return 0;
 }
@@ -30,14 +31,16 @@ static void writeDataCallback(uint8_t *ptr, size_t size)
     // Trigger sector erase on each 4kB address boundary
     if((memAddr % 0x1000) == 0)
     {
-        W25Qx_erase(memAddr, 0x1000);
+        if(nvm_erase(0, 0, memAddr, 0x1000) < 0)
+            return;
     }
 
     for(size_t written = 0; written < size; )
     {
         size_t toWrite = size - written;
         if(toWrite > 256) toWrite = 256;
-        W25Qx_writePage(memAddr, ptr, toWrite);
+        if(nvm_write(0, 0, memAddr, ptr, toWrite) < 0)
+            return;
         written += toWrite;
         memAddr += toWrite;
         ptr     += toWrite;
@@ -47,13 +50,11 @@ static void writeDataCallback(uint8_t *ptr, size_t size)
 void eflash_dump()
 {
     memAddr = 0;
-    W25Qx_wakeup();
     xmodem_sendData(EFLASH_SIZE, getDataCallback);
 }
 
 void eflash_restore()
 {
     memAddr = 0;
-    W25Qx_wakeup();
     xmodem_receiveData(EFLASH_SIZE, writeDataCallback);
 }

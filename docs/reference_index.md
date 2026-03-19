@@ -92,12 +92,10 @@ Useful existing tests:
 
 ## Current Product Gaps To Keep In Mind
 
-- scan modeled, not fully implemented
 - on-radio memory edit/save still limited
 - DMR modeled, not runtime-enabled
-- backup/restore not fully orchestrated
-- VOX stored, not obviously active
-- default UI ready for workflow redesign
+- default UI still carries too much workflow logic
+- channel scan still needs deeper UI exposure and polish
 
 ## Recommended Docs Reading Order
 

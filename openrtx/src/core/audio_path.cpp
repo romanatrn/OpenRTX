@@ -6,6 +6,7 @@
 
 #include "core/audio_path.h"
 #include <map>
+#include <mutex>
 #include <set>
 
 /**
@@ -98,11 +99,13 @@ struct Route
 static std::set< int >        activePaths;      // IDs of currently active paths.
 static std::map< int, Route > routes;           // Route data of currently active paths.
 static int                    pathCounter = 1;  // Counter for path ID generation.
+static std::mutex             routeMutex;
 
 
 pathId audioPath_request(enum AudioSource source, enum AudioSink sink,
                          enum AudioPriority prio)
 {
+    std::lock_guard< std::mutex > lock(routeMutex);
     const Path path(source, sink, prio);
     if (!path.isValid())
         return -1;
@@ -148,6 +151,7 @@ pathId audioPath_request(enum AudioSource source, enum AudioSink sink,
 
 pathInfo_t audioPath_getInfo(const pathId id)
 {
+    std::lock_guard< std::mutex > lock(routeMutex);
     pathInfo_t info = {0, 0, 0, 0};
 
     const auto it = routes.find(id);
@@ -170,6 +174,7 @@ pathInfo_t audioPath_getInfo(const pathId id)
 
 enum PathStatus audioPath_getStatus(const pathId id)
 {
+    std::lock_guard< std::mutex > lock(routeMutex);
     const auto it = routes.find(id);
 
     if(it == routes.end())
@@ -183,6 +188,7 @@ enum PathStatus audioPath_getStatus(const pathId id)
 
 void audioPath_release(const pathId id)
 {
+    std::lock_guard< std::mutex > lock(routeMutex);
     auto it = routes.find(id);
     if(it == routes.end())  // Does not exists
         return;

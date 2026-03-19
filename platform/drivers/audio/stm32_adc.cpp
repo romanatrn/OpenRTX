@@ -220,7 +220,7 @@ void stm32adc_init(const uint8_t instance)
 void stm32adc_terminate()
 {
     // Terminate streams before shutting of the peripherals
-    for(int i = 0; i < 2; i++)
+    for(int i = 0; i < 3; i++)
     {
         if(AdcContext[i] != NULL)
         {

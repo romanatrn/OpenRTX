@@ -212,6 +212,8 @@ typedef struct ui_state_t
     char new_message[53];
     char new_m17_key[M17_KEY_HEX_LEN + 1];
     bool edit_message;
+    uint8_t gps_map_zoom;
+    bool gps_map_enabled;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 }

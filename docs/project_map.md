@@ -184,11 +184,11 @@ Current testing is good for protocol and targeted core logic, but there is room
 
 These are the biggest visible gaps in the current codebase.
 
-- Scan support is modeled but not implemented as a real user-facing subsystem.
+- Scan support now has a core controller, but channel-scan UX and policy depth are still evolving.
 - On-radio memory editing is limited compared with browse/navigation.
 - DMR is represented in the data model but not in runtime radio operation.
-- VOX is stored as a setting but appears unused in live behavior.
-- Backup/restore is not fully wired through the runtime state machine.
+- VOX now has basic FM runtime behavior, but it still needs user-facing tuning and validation coverage.
+- Backup/restore is now routed through the runtime state machine, but it still needs progress/error UX refinement.
 - Power management is functional but not deeply optimized.
 - Default UI lacks a service/calibration surface comparable to the opportunity
   visible in Module17-oriented code.

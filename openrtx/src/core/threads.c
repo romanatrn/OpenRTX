@@ -22,6 +22,15 @@
 #include "core/gps.h"
 #include "core/voicePrompts.h"
 
+static void copyFixedString(char *dst, size_t size, const char *src)
+{
+    if(size == 0)
+        return;
+
+    strncpy(dst, src, size - 1);
+    dst[size - 1] = '\0';
+}
+
 #if defined(PLATFORM_TTWRPLUS)
 #include "pmu.h"
 #endif
@@ -53,6 +62,12 @@ void *ui_threadFunc(void *arg)
     {
         time = getTick();
 
+        if(state.devStatus == DATATRANSFER)
+        {
+            sleepUntil(time + 25);
+            continue;
+        }
+
         if(input_scanKeyboard(&kbd_msg))
         {
             ui_pushEvent(EVENT_KBD, kbd_msg.value);
@@ -60,6 +75,11 @@ void *ui_threadFunc(void *arg)
 
         pthread_mutex_lock(&state_mutex);   // Lock r/w access to radio state
         ui_updateFSM(&sync_rtx);            // Update UI FSM
+        if(state.rtx_sync_pending)
+        {
+            sync_rtx = true;
+            state.rtx_sync_pending = false;
+        }
         ui_saveState();                     // Save local state copy
         pthread_mutex_unlock(&state_mutex); // Unlock r/w access to radio state
 
@@ -77,6 +97,8 @@ void *ui_threadFunc(void *arg)
                 rtx_cfg.opMode = OPMODE_M17;
 #endif
             rtx_cfg.bandwidth   = state.channel.bandwidth;
+            rtx_cfg.scan        = (state.tuner_mode == SCAN)
+                               || (state.tuner_mode == CHSCAN);
 
             /* Applies frequency offset */
             rtx_cfg.rxFrequency = state.channel.rx_frequency * (1.0f + (float)state.settings.ppm_offset/1e7);
@@ -103,8 +125,12 @@ void *ui_threadFunc(void *arg)
                 rtx_cfg.rxCan = state.channel.m17.rxCan;
             }
             rtx_cfg.canRxEn = state.settings.m17_can_rx;
-            strncpy(rtx_cfg.source_address,      state.settings.callsign, 10);
-            strncpy(rtx_cfg.destination_address, state.settings.m17_dest, 10);
+            copyFixedString(rtx_cfg.source_address,
+                            sizeof(rtx_cfg.source_address),
+                            state.settings.callsign);
+            copyFixedString(rtx_cfg.destination_address,
+                            sizeof(rtx_cfg.destination_address),
+                            state.settings.m17_dest);
 
             pthread_mutex_unlock(&rtx_mutex);
 
@@ -147,10 +173,36 @@ void *main_thread(void *arg)
     while(state.devStatus != SHUTDOWN)
     {
         time = getTick();
+        bool runBackup = false;
+        bool runRestore = false;
 
         #if defined(PLATFORM_TTWRPLUS)
         pmu_handleIRQ();
         #endif
+
+        pthread_mutex_lock(&state_mutex);
+        if(state.devStatus == DATATRANSFER)
+        {
+            runBackup  = state.backup_eflash;
+            runRestore = state.restore_eflash;
+            pthread_mutex_unlock(&state_mutex);
+
+            if(runBackup)
+                eflash_dump();
+            else if(runRestore)
+                eflash_restore();
+
+            pthread_mutex_lock(&state_mutex);
+            state.backup_eflash = false;
+            state.restore_eflash = false;
+            state.devStatus = RUNNING;
+            pthread_mutex_unlock(&state_mutex);
+
+            state_requestRtxSync();
+            ui_pushEvent(EVENT_STATUS, 0);
+            continue;
+        }
+        pthread_mutex_unlock(&state_mutex);
 
         // Check if power off is requested
         pthread_mutex_lock(&state_mutex);
@@ -183,9 +235,12 @@ void *rtx_threadFunc(void *arg)
 
     rtx_init(&rtx_mutex);
 
-    while(state.devStatus == RUNNING)
+    while(state.devStatus != SHUTDOWN)
     {
-        rtx_task();
+        if(state.devStatus == RUNNING)
+            rtx_task();
+        else
+            sleepFor(0u, 20u);
     }
 
     rtx_terminate();
