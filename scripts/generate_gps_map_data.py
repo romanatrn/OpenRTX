@@ -116,7 +116,7 @@ def feature_min_zoom(kind, props):
         return "GPS_MAP_ZOOM_PROVINCE" if rank <= 5 else "GPS_MAP_ZOOM_REGION"
     if kind == "secondary_road":
         rank = int(props.get("scalerank", 8) or 8)
-        return "GPS_MAP_ZOOM_REGION" if rank <= 6 else "GPS_MAP_ZOOM_TOWN"
+        return "GPS_MAP_ZOOM_REGION" if rank <= 8 else "GPS_MAP_ZOOM_TOWN"
     if kind == "water":
         rank = int(props.get("scalerank", 8) or 8)
         return "GPS_MAP_ZOOM_REGION" if rank <= 5 else "GPS_MAP_ZOOM_TOWN"
@@ -167,16 +167,23 @@ def load_roads():
     for feature in data["features"]:
         props = feature["properties"]
         road_type = props.get("type")
-        if road_type not in ("Major Highway", "Secondary Highway"):
+        if road_type not in ("Major Highway", "Secondary Highway", "Ferry Route"):
             continue
         for line in iter_lines(feature["geometry"]):
             if not any_point_in_bbox(line):
                 continue
-            simplified = rdp(line, 0.015 if road_type == "Major Highway" else 0.01)
+            if road_type == "Major Highway":
+                simplified = rdp(line, 0.010)
+                kind = "major_road"
+            elif road_type == "Secondary Highway":
+                simplified = rdp(line, 0.006)
+                kind = "secondary_road"
+            else:
+                simplified = rdp(line, 0.004)
+                kind = "secondary_road"
             q = quantize(simplified)
             if len(q) < 2:
                 continue
-            kind = "major_road" if road_type == "Major Highway" else "secondary_road"
             features.append((kind, feature_min_zoom(kind, props), props, q))
     return features
 

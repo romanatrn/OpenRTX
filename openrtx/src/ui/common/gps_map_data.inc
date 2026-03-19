@@ -745,6 +745,7 @@ static const gps_map_point_t gps_map_road_0[] = {
     {45198820, -66294517},
     {45174508, -66485542},
     {45141512, -66560216},
+    {45138039, -66721719},
     {45127620, -66759924},
     {45143249, -66855437},
     {45238762, -67154131},
@@ -762,21 +763,27 @@ static const gps_map_point_t gps_map_road_1[] = {
 static const gps_map_point_t gps_map_road_2[] = {
     {45605183, -62027704},
     {45554822, -62052017},
+    {45525300, -62043334},
     {45476675, -61999919},
+    {45375953, -62052017},
     {45316908, -62065909},
     {45256128, -62025968},
     {45157142, -61991236},
+    {45139776, -61994709},
     {45115463, -62017285},
     {45023424, -62019021},
     {45023424, -62055490},
+    {45002585, -62078066},
     {44990429, -62119744},
     {44981746, -62253462},
     {44957433, -62270828},
     {44920965, -62399336},
     {44917492, -62553892},
+    {44886233, -62572995},
     {44851501, -62618146},
     {44795930, -62741445},
     {44794193, -62797016},
+    {44820242, -62840431},
     {44821979, -62861270},
     {44764671, -62939416},
     {44790565, -63126580},
@@ -785,6 +792,7 @@ static const gps_map_point_t gps_map_road_2[] = {
 static const gps_map_point_t gps_map_road_3[] = {
     {46107059, -60249432},
     {46070590, -60268534},
+    {46035858, -60331052},
     {45961185, -60426564},
     {45780579, -60725258},
     {45737164, -60716575},
@@ -796,14 +804,19 @@ static const gps_map_point_t gps_map_road_3[] = {
 static const gps_map_point_t gps_map_road_4[] = {
     {46192152, -60622799},
     {46093166, -60825981},
+    {46089693, -60855503},
     {46101849, -60885025},
 };
 
 static const gps_map_point_t gps_map_road_5[] = {
     {45674647, -61366062},
+    {45752794, -61331330},
     {45818784, -61315701},
+    {45886511, -61246237},
+    {45922980, -61194139},
     {45954239, -61169827},
     {45988970, -61056948},
+    {46084483, -60905864},
     {46087956, -60885025},
 };
 
@@ -812,17 +825,23 @@ static const gps_map_point_t gps_map_road_6[] = {
     {46376231, -61168090},
     {46261616, -61254920},
     {46225147, -61310491},
+    {46188679, -61307018},
     {46169576, -61315701},
     {46074064, -61406004},
+    {46037595, -61463311},
+    {46030649, -61511936},
     {46015019, -61531038},
     {45916033, -61480677},
+    {45883038, -61484150},
     {45752794, -61459838},
     {45667700, -61402530},
 };
 
 static const gps_map_point_t gps_map_road_7[] = {
     {46417909, -61102099},
+    {46358865, -61103836},
     {46329343, -61091680},
+    {46322397, -61076051},
     {46336289, -61015270},
     {46324133, -60987484},
     {46242513, -60937123},
@@ -834,19 +853,28 @@ static const gps_map_point_t gps_map_road_8[] = {
     {46192152, -60622799},
     {46237303, -60640165},
     {46313714, -60626273},
+    {46334553, -60605433},
+    {46355392, -60551599},
+    {46397070, -60520340},
     {46404016, -60497765},
     {46480427, -60476925},
     {46532524, -60423091},
+    {46560310, -60419618},
     {46598515, -60391832},
     {46678398, -60416145},
     {46747862, -60350154},
+    {46782594, -60351891},
     {46808643, -60367520},
+    {46848585, -60440457},
     {46878107, -60468242},
     {46883317, -60515131},
     {46815589, -60662741},
+    {46813853, -60813825},
     {46805170, -60829454},
+    {46793014, -60836401},
     {46742652, -60832927},
     {46706184, -60921494},
+    {46678398, -60930177},
     {46579413, -61011797},
     {46428329, -61082997},
     {46391860, -61119465},
@@ -861,6 +889,7 @@ static const gps_map_point_t gps_map_road_9[] = {
     {45954239, -65980193},
     {45850043, -66056604},
     {45825731, -66126067},
+    {45856989, -66244156},
     {45896931, -66322303},
     {45881302, -66456020},
     {45943819, -66610577},
@@ -870,10 +899,14 @@ static const gps_map_point_t gps_map_road_9[] = {
 static const gps_map_point_t gps_map_road_10[] = {
     {47044820, -65483527},
     {46885053, -65160521},
+    {46845111, -65104950},
+    {46773911, -65038959},
+    {46704447, -64929554},
     {46624564, -64844461},
     {46435275, -64721162},
     {46348445, -64636069},
     {46272035, -64590918},
+    {46235567, -64582235},
     {46209518, -64589181},
     {46143527, -64663855},
 };
@@ -881,18 +914,25 @@ static const gps_map_point_t gps_map_road_10[] = {
 static const gps_map_point_t gps_map_road_11[] = {
     {47067396, -65464425},
     {47152489, -65271663},
+    {47201113, -65214355},
+    {47232372, -65157048},
+    {47326148, -65030276},
     {47374773, -64978178},
     {47421661, -64936500},
     {47463339, -64922607},
+    {47513700, -64926081},
     {47558852, -64948656},
+    {47584901, -64931290},
     {47612686, -64882666},
     {47640472, -64863563},
     {47671730, -64868773},
     {47741194, -64901768},
     {47770716, -64934764},
+    {47774190, -64986861},
     {47753350, -65106686},
     {47798502, -65120579},
     {47808921, -65167467},
+    {47768980, -65273399},
     {47751614, -65348073},
     {47675204, -65443586},
     {47624842, -65608562},
@@ -910,9 +950,15 @@ static const gps_map_point_t gps_map_road_12[] = {
 
 static const gps_map_point_t gps_map_road_13[] = {
     {45652071, -61425106},
+    {45672910, -61478940},
     {45672910, -61511936},
+    {45638178, -61586609},
+    {45606920, -61630024},
     {45598237, -61661283},
+    {45599973, -61734220},
     {45584344, -61890513},
+    {45586080, -61953031},
+    {45601710, -61982553},
     {45605183, -62027704},
 };
 
@@ -927,25 +973,34 @@ static const gps_map_point_t gps_map_road_15[] = {
     {46826009, -65869051},
     {46848585, -66004506},
     {46775648, -66370927},
+    {46789540, -66435181},
     {46789540, -66539377},
     {46859004, -66768607},
+    {46874634, -66898852},
     {46869424, -66990891},
     {46921522, -67103770},
+    {46916312, -67185390},
+    {46928468, -67265273},
     {46924995, -67306952},
     {46885053, -67412884},
     {46885053, -67454562},
     {46898946, -67489294},
     {46978829, -67543128},
+    {46996195, -67590016},
     {47039610, -67661217},
+    {47048293, -67730681},
     {47063922, -67758466},
 };
 
 static const gps_map_point_t gps_map_road_16[] = {
     {45683330, -62736235},
     {45754530, -62826538},
+    {45775369, -62883845},
     {45789262, -63007144},
+    {45782316, -63036666},
     {45749320, -63080081},
     {45747584, -63158227},
+    {45711115, -63248530},
     {45707642, -63290209},
     {45745847, -63394404},
     {45801418, -63451712},
@@ -955,6 +1010,8 @@ static const gps_map_point_t gps_map_road_16[] = {
     {45879565, -63828553},
     {45870882, -63880651},
     {45893458, -63962271},
+    {45865672, -64040417},
+    {45851779, -64161979},
     {45836150, -64212340},
 };
 
@@ -970,6 +1027,8 @@ static const gps_map_point_t gps_map_road_17[] = {
 
 static const gps_map_point_t gps_map_road_18[] = {
     {46815589, -65804797},
+    {46714867, -65856895},
+    {46647140, -65877734},
     {46624564, -65898573},
     {46562047, -66126067},
     {46499529, -66275414},
@@ -977,6 +1036,8 @@ static const gps_map_point_t gps_map_road_18[] = {
     {46365811, -66542850},
     {46305031, -66581055},
     {46185206, -66619260},
+    {46124425, -66615787},
+    {46028912, -66588001},
     {45999390, -66591475},
     {45957712, -66619260},
     {45926453, -66692197},
@@ -984,12 +1045,15 @@ static const gps_map_point_t gps_map_road_18[] = {
 
 static const gps_map_point_t gps_map_road_19[] = {
     {45370743, -63298892},
+    {45254391, -63286735},
     {45217922, -63297155},
+    {45132829, -63370092},
     {45084205, -63434346},
     {45007795, -63472551},
     {44973063, -63531595},
     {44865394, -63545488},
     {44828925, -63573273},
+    {44766408, -63641001},
     {44749042, -63682679},
 };
 
@@ -999,7 +1063,9 @@ static const gps_map_point_t gps_map_road_20[] = {
     {45096361, -64318272},
     {45094624, -64260965},
     {45049473, -64193238},
+    {44985219, -64160242},
     {44969589, -64142876},
+    {44962643, -64116828},
     {44966116, -64040417},
     {44915755, -63925802},
     {44749042, -63682679},
@@ -1026,6 +1092,7 @@ static const gps_map_point_t gps_map_road_22[] = {
 
 static const gps_map_point_t gps_map_road_23[] = {
     {44580592, -64320009},
+    {44526758, -64316536},
     {44502446, -64325219},
     {44478133, -64387736},
     {44441665, -64424205},
@@ -1043,10 +1110,12 @@ static const gps_map_point_t gps_map_road_24[] = {
     {44082190, -64776733},
     {44346152, -64955603},
     {44368728, -64981652},
+    {44434718, -65144891},
     {44441665, -65191779},
     {44523285, -65271663},
     {44530231, -65346336},
     {44554543, -65394961},
+    {44564963, -65408854},
     {44745569, -65513049},
 };
 
@@ -1062,8 +1131,10 @@ static const gps_map_point_t gps_map_road_25[] = {
     {43583787, -65523469},
     {43580314, -65542572},
     {43585524, -65594669},
+    {43623729, -65655450},
     {43656724, -65686709},
     {43705349, -65782222},
+    {43830383, -65898573},
     {43856432, -65936779},
     {43870325, -66002769},
     {43847749, -66079179},
@@ -1072,10 +1143,12 @@ static const gps_map_point_t gps_map_road_25[] = {
 static const gps_map_point_t gps_map_road_26[] = {
     {43847749, -66079179},
     {43859906, -66115648},
+    {43969311, -66122594},
     {44125605, -66148643},
     {44202015, -66098282},
     {44269742, -66086126},
     {44401723, -66028818},
+    {44436455, -65997559},
     {44575382, -65796114},
     {44618797, -65672816},
     {44696944, -65546045},
@@ -1090,7 +1163,9 @@ static const gps_map_point_t gps_map_road_27[] = {
 
 static const gps_map_point_t gps_map_road_28[] = {
     {46232094, -60508184},
+    {46218201, -60492555},
     {46221674, -60473452},
+    {46266826, -60393569},
     {46273772, -60353627},
     {46256406, -60292846},
     {46230357, -60277217},
@@ -1103,6 +1178,7 @@ static const gps_map_point_t gps_map_road_29[] = {
     {46193889, -60643639},
     {46204308, -60595014},
     {46247723, -60551599},
+    {46252933, -60532496},
     {46244250, -60520340},
 };
 
@@ -1144,14 +1220,17 @@ static const gps_map_point_t gps_map_road_36[] = {
 static const gps_map_point_t gps_map_road_37[] = {
     {46947571, -64047364},
     {46768701, -64181082},
+    {46740916, -64182818},
     {46695764, -64158506},
     {46647140, -64028261},
+    {46459588, -63981373},
     {46450905, -63970954},
     {46416173, -63738250},
 };
 
 static const gps_map_point_t gps_map_road_38[] = {
     {46284191, -63623635},
+    {46263352, -63649684},
     {46247723, -63703518},
 };
 
@@ -1186,6 +1265,7 @@ static const gps_map_point_t gps_map_road_43[] = {
 
 static const gps_map_point_t gps_map_road_44[] = {
     {46143527, -64663855},
+    {46127898, -64707270},
     {46129635, -64828831},
 };
 
@@ -1201,6 +1281,9 @@ static const gps_map_point_t gps_map_road_45[] = {
 static const gps_map_point_t gps_map_road_46[] = {
     {46143527, -64663855},
     {46008073, -64514508},
+    {45976814, -64436361},
+    {45922980, -64380790},
+    {45889985, -64297433},
     {45856989, -64257492},
 };
 
@@ -1211,8 +1294,13 @@ static const gps_map_point_t gps_map_road_47[] = {
 
 static const gps_map_point_t gps_map_road_48[] = {
     {45572188, -62638986},
+    {45577398, -62725815},
     {45565241, -62781386},
+    {45527036, -62875162},
+    {45514880, -62944626},
     {45471465, -63078344},
+    {45441943, -63109603},
+    {45419367, -63165174},
     {45362060, -63255477},
 };
 
@@ -1224,8 +1312,10 @@ static const gps_map_point_t gps_map_road_49[] = {
 static const gps_map_point_t gps_map_road_50[] = {
     {45836150, -64212340},
     {45714588, -64036944},
+    {45704169, -63997002},
     {45726745, -63880651},
     {45690276, -63764299},
+    {45608656, -63734777},
     {45492304, -63665313},
     {45455836, -63616688},
     {45433260, -63515966},
@@ -1238,10 +1328,12 @@ static const gps_map_point_t gps_map_road_51[] = {
     {45398528, -63915383},
     {45429787, -64061256},
     {45438470, -64234916},
+    {45436733, -64300907},
     {45426314, -64337375},
     {45511407, -64366897},
     {45535719, -64347795},
     {45598237, -64234916},
+    {45593027, -64149823},
     {45601710, -64108145},
     {45700696, -64005685},
 };
@@ -1253,6 +1345,7 @@ static const gps_map_point_t gps_map_road_52[] = {
 
 static const gps_map_point_t gps_map_road_53[] = {
     {44749042, -63682679},
+    {44735149, -63660103},
     {44733413, -63630581},
     {44677842, -63561117},
 };
@@ -1275,9 +1368,11 @@ static const gps_map_point_t gps_map_road_56[] = {
 static const gps_map_point_t gps_map_road_57[] = {
     {45233552, -66185112},
     {45379426, -66306673},
+    {45431524, -66330985},
     {45513144, -66343142},
     {45671174, -66464703},
     {45716325, -66482069},
+    {45771896, -66469913},
     {45799682, -66476859},
     {45891721, -66633153},
     {45896931, -66678304},
@@ -1286,6 +1381,7 @@ static const gps_map_point_t gps_map_road_57[] = {
 
 static const gps_map_point_t gps_map_road_58[] = {
     {44651793, -63717411},
+    {44655266, -63757352},
     {44705627, -63910173},
     {44599695, -64198447},
     {44580592, -64323482},
@@ -1293,29 +1389,101 @@ static const gps_map_point_t gps_map_road_58[] = {
 
 static const gps_map_point_t gps_map_road_59[] = {
     {45049473, -64531874},
+    {45013004, -64535347},
     {44948750, -64517981},
+    {44917492, -64535347},
     {44881023, -64540557},
     {44716047, -64457200},
+    {44669159, -64413785},
     {44615324, -64337375},
     {44580592, -64323482},
 };
 
 static const gps_map_point_t gps_map_road_60[] = {
+    {47381719, -61822786},
+    {47362617, -61768952},
+    {47338304, -61727273},
+    {47282733, -61663019},
+    {47254948, -61638707},
+    {47216743, -61619605},
+    {47159435, -61610922},
+    {47069132, -61624814},
+    {46541207, -61803684},
+    {46442222, -61845362},
+    {46377968, -61885304},
+    {46334553, -61932192},
+    {46282455, -62024231},
+    {46273772, -62065909},
+    {46278982, -62164895},
+    {46301557, -62227413},
+    {46339763, -62269091},
+};
+
+static const gps_map_point_t gps_map_road_61[] = {
+    {45940346, -62746654},
+    {45745847, -62684137},
+};
+
+static const gps_map_point_t gps_map_road_62[] = {
+    {45249181, -66061813},
+    {45068575, -66016662},
+    {44936594, -65919413},
+    {44825452, -65867315},
+    {44665685, -65756173},
+    {44613588, -65752700},
+};
+
+static const gps_map_point_t gps_map_road_63[] = {
+    {43795652, -66164272},
+    {43753973, -66185112},
+    {43726188, -66212897},
+    {43691456, -66280624},
+    {43681036, -66443864},
+    {43668880, -67242698},
+};
+
+static const gps_map_point_t gps_map_road_64[] = {
+    {46251196, -60204280},
+    {46317187, -60133080},
+    {46360602, -60030621},
+    {46398807, -59905586},
+    {46421382, -59667672},
+    {46442222, -59106752},
+    {46421382, -58702126},
+    {46483900, -57335426},
+    {46549890, -56159752},
+    {46596778, -55828062},
+    {46622827, -55586675},
+    {46664506, -55320976},
+    {46746126, -54961501},
+    {46799960, -54808681},
+    {46902419, -54636758},
+    {47003142, -54492621},
+    {47291416, -54180034},
+    {47353934, -54100150},
+    {47374773, -54032423},
+    {47371300, -53999428},
+    {47360880, -53973379},
+    {47345251, -53957750},
+    {47308782, -53952540},
+};
+
+static const gps_map_point_t gps_map_road_65[] = {
     {46244250, -60520340},
     {46232094, -60508184},
 };
 
-static const gps_map_point_t gps_map_road_61[] = {
+static const gps_map_point_t gps_map_road_66[] = {
     {46230357, -63113076},
     {46235567, -63125232},
 };
 
-static const gps_map_point_t gps_map_road_62[] = {
+static const gps_map_point_t gps_map_road_67[] = {
     {44670895, -63585430},
     {44660476, -63620161},
 };
 
-static const gps_map_point_t gps_map_road_63[] = {
+static const gps_map_point_t gps_map_road_68[] = {
     {46416173, -63738250},
     {46438748, -63637527},
     {46376231, -63488180},
@@ -1323,8 +1491,9 @@ static const gps_map_point_t gps_map_road_63[] = {
     {46294611, -63203379},
 };
 
-static const gps_map_point_t gps_map_road_64[] = {
+static const gps_map_point_t gps_map_road_69[] = {
     {46284191, -63623635},
+    {46247723, -63536805},
     {46244250, -63493390},
     {46186942, -63382248},
     {46155683, -63264160},
@@ -1334,18 +1503,25 @@ static const gps_map_point_t gps_map_road_64[] = {
     {46294611, -63203379},
 };
 
-static const gps_map_point_t gps_map_road_65[] = {
+static const gps_map_point_t gps_map_road_70[] = {
     {46235567, -63125232},
+    {46244250, -63142598},
     {46256406, -63139125},
     {46298084, -63095710},
+    {46348445, -62963729},
+    {46357128, -62902948},
     {46405753, -62791806},
+    {46409226, -62722342},
+    {46393597, -62651142},
     {46395334, -62597307},
     {46402280, -62578205},
     {46442222, -62560839},
     {46452641, -62529580},
+    {46452641, -62447960},
     {46438748, -62406282},
     {46463061, -62192681},
     {46445695, -62034651},
+    {46417909, -62074592},
     {46364075, -62210047},
     {46357128, -62442750},
     {46268562, -62602517},
@@ -1357,19 +1533,23 @@ static const gps_map_point_t gps_map_road_65[] = {
     {45980287, -62725815},
 };
 
-static const gps_map_point_t gps_map_road_66[] = {
+static const gps_map_point_t gps_map_road_71[] = {
     {46416173, -63738250},
     {46377968, -63729567},
+    {46332816, -63686152},
+    {46315450, -63646210},
     {46284191, -63623635},
 };
 
-static const gps_map_point_t gps_map_road_67[] = {
+static const gps_map_point_t gps_map_road_72[] = {
     {45782316, -65335917},
+    {45752794, -65290765},
     {45712852, -65190043},
     {45665964, -65157048},
     {45631232, -65106686},
     {45612129, -64969495},
     {45645125, -64893085},
+    {45646861, -64792363},
     {45659017, -64748948},
     {45697223, -64728109},
     {45719798, -64757631},
@@ -1384,12 +1564,28 @@ static const gps_map_point_t gps_map_road_67[] = {
     {46124425, -64807992},
 };
 
-static const gps_map_point_t gps_map_road_68[] = {
+static const gps_map_point_t gps_map_road_73[] = {
+    {47560588, -59179689},
+    {47558852, -59188372},
+    {47445973, -59245680},
+    {47282733, -59414130},
+    {47065659, -59681565},
+    {46895473, -59870854},
+    {46865951, -59893430},
+    {46822536, -59942054},
+    {46673189, -60065353},
+    {46556837, -60133080},
+    {46463061, -60174758},
+    {46251196, -60204280},
+};
+
+static const gps_map_point_t gps_map_road_74[] = {
     {45980287, -62725815},
     {45983761, -62809172},
     {46037595, -62887319},
     {46072327, -62892528},
     {46136581, -62838694},
+    {46155683, -62835221},
     {46169576, -62847377},
     {46183469, -62899475},
     {46221674, -62935943},
@@ -1397,76 +1593,85 @@ static const gps_map_point_t gps_map_road_68[] = {
     {46230357, -63113076},
 };
 
-static const gps_map_point_t gps_map_road_69[] = {
+static const gps_map_point_t gps_map_road_75[] = {
     {45657960, -60914880},
     {45620812, -61216715},
     {45593027, -61287915},
+    {45610393, -61334803},
     {45660754, -61402530},
 };
 
-static const gps_map_point_t gps_map_road_70[] = {
+static const gps_map_point_t gps_map_road_76[] = {
     {44790565, -63126580},
+    {44776827, -63184276},
     {44731676, -63290209},
+    {44724730, -63371828},
     {44677842, -63561117},
 };
 
-static const gps_map_point_t gps_map_road_71[] = {
+static const gps_map_point_t gps_map_road_77[] = {
     {46211770, -64378762},
+    {46222235, -64323446},
     {46213265, -64274109},
+    {46156453, -64190386},
     {46135522, -64132079},
     {46057780, -64099188},
 };
 
-static const gps_map_point_t gps_map_road_72[] = {
+static const gps_map_point_t gps_map_road_78[] = {
     {45858938, -66944272},
     {45863423, -66921846},
     {45942661, -66866529},
     {45965086, -66803737},
+    {45962096, -66717024},
     {45950136, -66694598},
 };
 
-static const gps_map_point_t gps_map_road_73[] = {
+static const gps_map_point_t gps_map_road_79[] = {
     {46207285, -64499862},
     {46211770, -64378762},
 };
 
-static const gps_map_point_t gps_map_road_74[] = {
+static const gps_map_point_t gps_map_road_80[] = {
     {46147483, -60144775},
     {46172899, -60083477},
     {46180374, -59965368},
     {46193829, -59953408},
 };
 
-static const gps_map_point_t gps_map_road_75[] = {
+static const gps_map_point_t gps_map_road_81[] = {
     {44737649, -63560969},
     {44692797, -63499672},
 };
 
-static const gps_map_point_t gps_map_road_76[] = {
+static const gps_map_point_t gps_map_road_82[] = {
     {46256622, -60316706},
+    {46285028, -60321191},
     {46304463, -60304745},
     {46317919, -60330161},
 };
 
-static const gps_map_point_t gps_map_road_77[] = {
+static const gps_map_point_t gps_map_road_83[] = {
     {46105621, -60225507},
     {46113097, -60167200},
     {46147483, -60144775},
 };
 
-static const gps_map_point_t gps_map_road_78[] = {
+static const gps_map_point_t gps_map_road_84[] = {
     {44640470, -63729910},
+    {44628510, -63688048},
     {44643460, -63650672},
 };
 
-static const gps_map_point_t gps_map_road_79[] = {
+static const gps_map_point_t gps_map_road_85[] = {
     {44694292, -63569939},
     {44751104, -63554989},
     {44809411, -63601335},
 };
 
-static const gps_map_point_t gps_map_road_80[] = {
+static const gps_map_point_t gps_map_road_86[] = {
     {46422572, -62583205},
+    {46416592, -62542838},
     {46397157, -62499482},
     {46359780, -62456125},
 };
@@ -1625,85 +1830,91 @@ static const gps_map_feature_t map_features[] = {
     {gps_map_land_7, ARRAY_SIZE(gps_map_land_7), 45994696, 46034003, -59780995, -59695180, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_COAST},
     {gps_map_road_0, ARRAY_SIZE(gps_map_road_0), 45127620, 45238762, -67298269, -66185112, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_1, ARRAY_SIZE(gps_map_road_1), 45841360, 45926453, -66921428, -66692197, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_2, ARRAY_SIZE(gps_map_road_2), 44764671, 45605183, -63126580, -61991236, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_2, ARRAY_SIZE(gps_map_road_2), 44764671, 45605183, -63126580, -61991236, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_3, ARRAY_SIZE(gps_map_road_3), 45655544, 46107059, -60914880, -60249432, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_4, ARRAY_SIZE(gps_map_road_4), 46093166, 46192152, -60885025, -60622799, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_4, ARRAY_SIZE(gps_map_road_4), 46089693, 46192152, -60885025, -60622799, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_5, ARRAY_SIZE(gps_map_road_5), 45674647, 46087956, -61366062, -60885025, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_6, ARRAY_SIZE(gps_map_road_6), 45667700, 46391860, -61531038, -61119465, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_7, ARRAY_SIZE(gps_map_road_7), 46094903, 46417909, -61102099, -60869396, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_8, ARRAY_SIZE(gps_map_road_8), 46192152, 46883317, -61119465, -60350154, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_6, ARRAY_SIZE(gps_map_road_6), 45667700, 46391860, -61531038, -61119465, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_7, ARRAY_SIZE(gps_map_road_7), 46094903, 46417909, -61103836, -60869396, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_8, ARRAY_SIZE(gps_map_road_8), 46192152, 46883317, -61119465, -60350154, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_9, ARRAY_SIZE(gps_map_road_9), 45721535, 45966395, -66692197, -65466161, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_10, ARRAY_SIZE(gps_map_road_10), 46143527, 47044820, -65483527, -64589181, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_11, ARRAY_SIZE(gps_map_road_11), 47067396, 47808921, -65624192, -64863563, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_10, ARRAY_SIZE(gps_map_road_10), 46143527, 47044820, -65483527, -64582235, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_11, ARRAY_SIZE(gps_map_road_11), 47067396, 47808921, -65624192, -64863563, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_12, ARRAY_SIZE(gps_map_road_12), 47067396, 47590111, -65612035, -65405381, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_13, ARRAY_SIZE(gps_map_road_13), 45584344, 45672910, -62027704, -61425106, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_14, ARRAY_SIZE(gps_map_road_14), 46801697, 47044820, -65829110, -65483527, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_15, ARRAY_SIZE(gps_map_road_15), 46775648, 47063922, -67758466, -65829110, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_16, ARRAY_SIZE(gps_map_road_16), 45683330, 45893458, -64212340, -62736235, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_14, ARRAY_SIZE(gps_map_road_14), 46801697, 47044820, -65829110, -65483527, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_15, ARRAY_SIZE(gps_map_road_15), 46775648, 47063922, -67758466, -65829110, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_16, ARRAY_SIZE(gps_map_road_16), 45683330, 45893458, -64212340, -62736235, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_17, ARRAY_SIZE(gps_map_road_17), 45782316, 46133108, -65335917, -64828831, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_18, ARRAY_SIZE(gps_map_road_18), 45926453, 46815589, -66692197, -65804797, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_19, ARRAY_SIZE(gps_map_road_19), 44749042, 45370743, -63682679, -63297155, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_18, ARRAY_SIZE(gps_map_road_18), 45926453, 46815589, -66692197, -65804797, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_19, ARRAY_SIZE(gps_map_road_19), 44749042, 45370743, -63682679, -63286735, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
     {gps_map_road_20, ARRAY_SIZE(gps_map_road_20), 44749042, 45096361, -64531874, -63682679, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_21, ARRAY_SIZE(gps_map_road_21), 45233552, 45726745, -66185112, -65497420, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_22, ARRAY_SIZE(gps_map_road_22), 44745569, 45056419, -65504367, -64531874, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_23, ARRAY_SIZE(gps_map_road_23), 44070034, 44580592, -64717689, -64320009, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_24, ARRAY_SIZE(gps_map_road_24), 44049194, 44745569, -65513049, -64738528, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_23, ARRAY_SIZE(gps_map_road_23), 44070034, 44580592, -64717689, -64316536, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_24, ARRAY_SIZE(gps_map_road_24), 44049194, 44745569, -65513049, -64738528, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_25, ARRAY_SIZE(gps_map_road_25), 43580314, 44080453, -66079179, -64717689, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_26, ARRAY_SIZE(gps_map_road_26), 43847749, 44752515, -66148643, -65490474, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_27, ARRAY_SIZE(gps_map_road_27), 46107059, 46167840, -60249432, -60141763, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_27, ARRAY_SIZE(gps_map_road_27), 46107059, 46167840, -60249432, -60141763, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_28, ARRAY_SIZE(gps_map_road_28), 46107059, 46273772, -60508184, -60249432, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_29, ARRAY_SIZE(gps_map_road_29), 46193889, 46247723, -60643639, -60520340, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_30, ARRAY_SIZE(gps_map_road_30), 46129635, 46131371, -60890235, -60890235, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_31, ARRAY_SIZE(gps_map_road_31), 46129635, 46131371, -60890235, -60890235, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_29, ARRAY_SIZE(gps_map_road_29), 46193889, 46252933, -60643639, -60520340, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_30, ARRAY_SIZE(gps_map_road_30), 46129635, 46131371, -60890235, -60890235, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_31, ARRAY_SIZE(gps_map_road_31), 46129635, 46131371, -60890235, -60890235, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_32, ARRAY_SIZE(gps_map_road_32), 47044820, 47067396, -65483527, -65464425, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_33, ARRAY_SIZE(gps_map_road_33), 47044820, 47067396, -65483527, -65464425, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_34, ARRAY_SIZE(gps_map_road_34), 46268562, 46294611, -63203379, -63130442, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_35, ARRAY_SIZE(gps_map_road_35), 45653808, 45674647, -61421633, -61366062, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_36, ARRAY_SIZE(gps_map_road_36), 45650334, 45653808, -61437262, -61421633, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_37, ARRAY_SIZE(gps_map_road_37), 46416173, 46947571, -64181082, -63738250, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_38, ARRAY_SIZE(gps_map_road_38), 46247723, 46284191, -63703518, -63623635, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_39, ARRAY_SIZE(gps_map_road_39), 45605183, 45617339, -62027704, -62022495, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_40, ARRAY_SIZE(gps_map_road_40), 46140054, 46247723, -63819870, -63703518, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_41, ARRAY_SIZE(gps_map_road_41), 45683330, 45742374, -62736235, -62684137, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_35, ARRAY_SIZE(gps_map_road_35), 45653808, 45674647, -61421633, -61366062, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_36, ARRAY_SIZE(gps_map_road_36), 45650334, 45653808, -61437262, -61421633, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_37, ARRAY_SIZE(gps_map_road_37), 46416173, 46947571, -64182818, -63738250, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_38, ARRAY_SIZE(gps_map_road_38), 46247723, 46284191, -63703518, -63623635, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_39, ARRAY_SIZE(gps_map_road_39), 45605183, 45617339, -62027704, -62022495, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_40, ARRAY_SIZE(gps_map_road_40), 46140054, 46247723, -63819870, -63703518, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_41, ARRAY_SIZE(gps_map_road_41), 45683330, 45742374, -62736235, -62684137, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_42, ARRAY_SIZE(gps_map_road_42), 45570451, 45605183, -62638986, -62027704, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_43, ARRAY_SIZE(gps_map_road_43), 45572188, 45683330, -62736235, -62638986, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_44, ARRAY_SIZE(gps_map_road_44), 46129635, 46143527, -64828831, -64663855, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_45, ARRAY_SIZE(gps_map_road_45), 45877828, 46140054, -64271384, -63819870, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_43, ARRAY_SIZE(gps_map_road_43), 45572188, 45683330, -62736235, -62638986, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_44, ARRAY_SIZE(gps_map_road_44), 46127898, 46143527, -64828831, -64663855, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_45, ARRAY_SIZE(gps_map_road_45), 45877828, 46140054, -64271384, -63819870, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_46, ARRAY_SIZE(gps_map_road_46), 45856989, 46143527, -64663855, -64257492, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
     {gps_map_road_47, ARRAY_SIZE(gps_map_road_47), 45836150, 45856989, -64257492, -64212340, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_48, ARRAY_SIZE(gps_map_road_48), 45362060, 45572188, -63255477, -62638986, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_48, ARRAY_SIZE(gps_map_road_48), 45362060, 45577398, -63255477, -62638986, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_49, ARRAY_SIZE(gps_map_road_49), 45362060, 45433260, -63515966, -63255477, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
     {gps_map_road_50, ARRAY_SIZE(gps_map_road_50), 45433260, 45836150, -64212340, -63515966, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_51, ARRAY_SIZE(gps_map_road_51), 45398528, 45700696, -64366897, -63515966, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_51, ARRAY_SIZE(gps_map_road_51), 45398528, 45700696, -64366897, -63515966, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_52, ARRAY_SIZE(gps_map_road_52), 45721535, 45782316, -65466161, -65335917, GPS_MAP_ZOOM_PROVINCE, GPS_MAP_FEATURE_MAJOR_ROAD},
     {gps_map_road_53, ARRAY_SIZE(gps_map_road_53), 44677842, 44749042, -63682679, -63561117, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_54, ARRAY_SIZE(gps_map_road_54), 44670895, 44677842, -63585430, -63561117, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_55, ARRAY_SIZE(gps_map_road_55), 44651793, 44660476, -63646210, -63620161, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_54, ARRAY_SIZE(gps_map_road_54), 44670895, 44677842, -63585430, -63561117, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_55, ARRAY_SIZE(gps_map_road_55), 44651793, 44660476, -63646210, -63620161, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_56, ARRAY_SIZE(gps_map_road_56), 44651793, 44749042, -63717411, -63682679, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
     {gps_map_road_57, ARRAY_SIZE(gps_map_road_57), 45233552, 45926453, -66692197, -66185112, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_road_58, ARRAY_SIZE(gps_map_road_58), 44580592, 44705627, -64323482, -63717411, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_59, ARRAY_SIZE(gps_map_road_59), 44580592, 45049473, -64540557, -64323482, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_60, ARRAY_SIZE(gps_map_road_60), 46232094, 46244250, -60520340, -60508184, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_61, ARRAY_SIZE(gps_map_road_61), 46230357, 46235567, -63125232, -63113076, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_62, ARRAY_SIZE(gps_map_road_62), 44660476, 44670895, -63620161, -63585430, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_63, ARRAY_SIZE(gps_map_road_63), 46294611, 46438748, -63738250, -63203379, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_64, ARRAY_SIZE(gps_map_road_64), 46155683, 46294611, -63623635, -63203379, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_65, ARRAY_SIZE(gps_map_road_65), 45980287, 46463061, -63139125, -62034651, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_66, ARRAY_SIZE(gps_map_road_66), 46284191, 46416173, -63738250, -63623635, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_67, ARRAY_SIZE(gps_map_road_67), 45612129, 46124425, -65335917, -64615230, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_68, ARRAY_SIZE(gps_map_road_68), 45980287, 46230357, -63113076, -62725815, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_69, ARRAY_SIZE(gps_map_road_69), 45593027, 45660754, -61402530, -60914880, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_70, ARRAY_SIZE(gps_map_road_70), 44677842, 44790565, -63561117, -63126580, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_71, ARRAY_SIZE(gps_map_road_71), 46057780, 46213265, -64378762, -64099188, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_72, ARRAY_SIZE(gps_map_road_72), 45858938, 45965086, -66944272, -66694598, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_73, ARRAY_SIZE(gps_map_road_73), 46207285, 46211770, -64499862, -64378762, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_74, ARRAY_SIZE(gps_map_road_74), 46147483, 46193829, -60144775, -59953408, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
-    {gps_map_road_75, ARRAY_SIZE(gps_map_road_75), 44692797, 44737649, -63560969, -63499672, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_76, ARRAY_SIZE(gps_map_road_76), 46256622, 46317919, -60330161, -60304745, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_77, ARRAY_SIZE(gps_map_road_77), 46105621, 46147483, -60225507, -60144775, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_78, ARRAY_SIZE(gps_map_road_78), 44640470, 44643460, -63729910, -63650672, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_79, ARRAY_SIZE(gps_map_road_79), 44694292, 44809411, -63601335, -63554989, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
-    {gps_map_road_80, ARRAY_SIZE(gps_map_road_80), 46359780, 46422572, -62583205, -62456125, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_59, ARRAY_SIZE(gps_map_road_59), 44580592, 45049473, -64540557, -64323482, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_60, ARRAY_SIZE(gps_map_road_60), 46273772, 47381719, -62269091, -61610922, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_61, ARRAY_SIZE(gps_map_road_61), 45745847, 45940346, -62746654, -62684137, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_62, ARRAY_SIZE(gps_map_road_62), 44613588, 45249181, -66061813, -65752700, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_63, ARRAY_SIZE(gps_map_road_63), 43668880, 43795652, -67242698, -66164272, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_64, ARRAY_SIZE(gps_map_road_64), 46251196, 47374773, -60204280, -53952540, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_65, ARRAY_SIZE(gps_map_road_65), 46232094, 46244250, -60520340, -60508184, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_66, ARRAY_SIZE(gps_map_road_66), 46230357, 46235567, -63125232, -63113076, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_67, ARRAY_SIZE(gps_map_road_67), 44660476, 44670895, -63620161, -63585430, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_68, ARRAY_SIZE(gps_map_road_68), 46294611, 46438748, -63738250, -63203379, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_69, ARRAY_SIZE(gps_map_road_69), 46155683, 46294611, -63623635, -63203379, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_70, ARRAY_SIZE(gps_map_road_70), 45980287, 46463061, -63142598, -62034651, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_71, ARRAY_SIZE(gps_map_road_71), 46284191, 46416173, -63738250, -63623635, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_72, ARRAY_SIZE(gps_map_road_72), 45612129, 46124425, -65335917, -64615230, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_73, ARRAY_SIZE(gps_map_road_73), 46251196, 47560588, -60204280, -59179689, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_74, ARRAY_SIZE(gps_map_road_74), 45980287, 46230357, -63113076, -62725815, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_75, ARRAY_SIZE(gps_map_road_75), 45593027, 45660754, -61402530, -60914880, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_76, ARRAY_SIZE(gps_map_road_76), 44677842, 44790565, -63561117, -63126580, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_77, ARRAY_SIZE(gps_map_road_77), 46057780, 46222235, -64378762, -64099188, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_78, ARRAY_SIZE(gps_map_road_78), 45858938, 45965086, -66944272, -66694598, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_79, ARRAY_SIZE(gps_map_road_79), 46207285, 46211770, -64499862, -64378762, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_80, ARRAY_SIZE(gps_map_road_80), 46147483, 46193829, -60144775, -59953408, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
+    {gps_map_road_81, ARRAY_SIZE(gps_map_road_81), 44692797, 44737649, -63560969, -63499672, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_82, ARRAY_SIZE(gps_map_road_82), 46256622, 46317919, -60330161, -60304745, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_83, ARRAY_SIZE(gps_map_road_83), 46105621, 46147483, -60225507, -60144775, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_84, ARRAY_SIZE(gps_map_road_84), 44628510, 44643460, -63729910, -63650672, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_85, ARRAY_SIZE(gps_map_road_85), 44694292, 44809411, -63601335, -63554989, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_MAJOR_ROAD},
+    {gps_map_road_86, ARRAY_SIZE(gps_map_road_86), 46359780, 46422572, -62583205, -62456125, GPS_MAP_ZOOM_REGION, GPS_MAP_FEATURE_SECONDARY_ROAD},
     {gps_map_water_0, ARRAY_SIZE(gps_map_water_0), 46461859, 47087836, -67190419, -65367543, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_WATER},
     {gps_map_water_1, ARRAY_SIZE(gps_map_water_1), 45338731, 47360867, -70285553, -66032216, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_WATER},
     {gps_map_water_2, ARRAY_SIZE(gps_map_water_2), 45049506, 45306464, -62771108, -61883127, GPS_MAP_ZOOM_TOWN, GPS_MAP_FEATURE_WATER},
