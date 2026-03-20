@@ -7,6 +7,7 @@
 #include "drivers/usb_vcom.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include "core/dev_console.h"
 #include "core/xmodem.h"
 #include <string.h>
 #include "core/crc.h"
@@ -106,6 +107,8 @@ size_t xmodem_receivePacket(void* data, uint8_t expectedBlockNum)
 
 ssize_t xmodem_sendData(size_t size, int (*callback)(uint8_t *, size_t))
 {
+    devConsole_log(DEVLOG_INFO, "XMDM", "Send %u bytes", (unsigned int) size);
+
     // Wait for the start command from the receiver, only CRC mode is supported.
     uint8_t cmd = 0;
     while(cmd != CRC)
@@ -129,6 +132,7 @@ ssize_t xmodem_sendData(size_t size, int (*callback)(uint8_t *, size_t))
         {
             cmd = CAN;
             vcom_writeBlock(&cmd, 1);
+            devConsole_log(DEVLOG_ERROR, "XMDM", "Read callback failed");
             return -1;
         }
 
@@ -174,6 +178,7 @@ ssize_t xmodem_sendData(size_t size, int (*callback)(uint8_t *, size_t))
         waitForData(&cmd, 1);
     }
 
+    devConsole_log(DEVLOG_INFO, "XMDM", "Send complete");
     return sentSize;
 }
 
@@ -185,6 +190,7 @@ ssize_t xmodem_receiveData(size_t size, void (*callback)(uint8_t *, size_t))
     size_t  rcvdSize = 0;
 
     // Request data transfer in CRC mode
+    devConsole_log(DEVLOG_INFO, "XMDM", "Receive %u bytes", (unsigned int) size);
     command = CRC;
     vcom_writeBlock(&command, 1);
 
@@ -195,6 +201,7 @@ ssize_t xmodem_receiveData(size_t size, void (*callback)(uint8_t *, size_t))
         {
             // Bad packet, send NACK
             command = NAK;
+            devConsole_log(DEVLOG_WARN, "XMDM", "Packet retry %u", blockNum);
         }
         else
         {
@@ -223,5 +230,6 @@ ssize_t xmodem_receiveData(size_t size, void (*callback)(uint8_t *, size_t))
     command = ACK;
     vcom_writeBlock(&command, 1);
 
+    devConsole_log(DEVLOG_INFO, "XMDM", "Receive complete");
     return rcvdSize;
 }

@@ -54,6 +54,7 @@ enum uiScreen
     MENU_BACKUP,
     MENU_RESTORE,
     MENU_INFO,
+    MENU_DEV_CONSOLE,
     MENU_ABOUT,
     GAME_RUN,
     SETTINGS_TIMEDATE,
@@ -208,7 +209,9 @@ enum settingsRadioItems
     R_SHIFT,
     R_DIRECTION,
     R_STEP,
-    R_PPM
+    R_PPM,
+    R_POWER_RANGE,
+    R_USB_LOG_EXPORT
 };
 
 enum settingsM17Items

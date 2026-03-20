@@ -12,6 +12,7 @@
 #include "hwconfig.h"
 #include <algorithm>
 #include "core/utils.h"
+#include "core/power.h"
 #include "radioUtils.h"
 #include "drivers/baseband/HR_C6000.h"
 #include "drivers/baseband/AT1846S.h"
@@ -185,13 +186,9 @@ void radio_enableTx()
     C6000.setModOffset(txModBias);
     at1846s.setFrequency(config->txFrequency);
 
-    // Constrain output power between 1W and 5W.
-    float power  = static_cast < float >(config->txPower) / 1000.0f;
-          power  = std::max(std::min(power, 5.0f), 1.0f);
-    float pwrHi  = static_cast< float >(txpwr_hi);
-    float pwrLo  = static_cast< float >(txpwr_lo);
-    float apc    = pwrLo + (pwrHi - pwrLo)/4.0f*(power - 1.0f);
-    DAC->DHR12L1 = static_cast< uint8_t >(apc) * 0xFF;
+    uint8_t apc = powerGetApcControlValue(config->txPower, config->txFrequency,
+                                          txpwr_lo, txpwr_hi);
+    DAC->DHR12L1 = apc * 0xFF;
 
     switch(config->opMode)
     {

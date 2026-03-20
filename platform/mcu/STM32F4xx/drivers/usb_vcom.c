@@ -44,6 +44,7 @@ struct rb
 rxRingBuf;
 
 bool txDone;    /* Flag for end of data transmission. */
+static bool vcomConnected;
 
 /* USB CDC device Configuration Descriptor */
 uint8_t usbd_cdc_CfgDesc[USB_CDC_CONFIG_DESC_SIZ] =
@@ -198,11 +199,28 @@ int vcom_init()
 {
     rxRingBuf.readPtr = 0;
     rxRingBuf.writePtr = 0;
+    vcomConnected = false;
+    txDone = true;
 
     USBD_Init(&USB_OTG_dev, USB_OTG_FS_CORE_ID, &USR_desc, &USBD_CDC_cb,
               &USR_cb);
 
     return 0;
+}
+
+bool vcom_isConnected()
+{
+    return vcomConnected;
+}
+
+ssize_t vcom_writeBlockNonblocking(const void* buf, size_t len)
+{
+    if((vcomConnected == false) || (txDone == false) || (len == 0))
+        return 0;
+
+    txDone = false;
+    DCD_EP_Tx(&USB_OTG_dev, CDC_IN_EP, (uint8_t*) buf, len);
+    return len;
 }
 
 ssize_t vcom_writeBlock(const void* buf, size_t len)
@@ -267,6 +285,7 @@ static uint8_t  usbd_cdc_Init (void  *pdev, uint8_t cfgidx)
 
     /* Prepare Out endpoint to receive next packet */
     DCD_EP_PrepareRx(pdev, CDC_OUT_EP, outEnpBuffer, CDC_DATA_OUT_PACKET_SIZE);
+    vcomConnected = true;
 
     return USBD_OK;
 }
@@ -283,6 +302,7 @@ static uint8_t  usbd_cdc_DeInit (void  *pdev, uint8_t cfgidx)
 
     /* Open Command IN EP */
     DCD_EP_Close(pdev,CDC_CMD_EP);
+    vcomConnected = false;
 
     return USBD_OK;
 }

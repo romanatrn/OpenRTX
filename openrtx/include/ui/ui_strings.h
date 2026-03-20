@@ -101,6 +101,9 @@ typedef struct
     const char* canRxCheck;
     const char* metaText;
     const char* ppmFreqOffset;
+    const char* developerConsole;
+    const char* usbLogExport;
+    const char* noLogs;
 }
 stringsTable_t;
 

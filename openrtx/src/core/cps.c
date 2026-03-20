@@ -6,6 +6,7 @@
 
 #include "interfaces/platform.h"
 #include "core/cps.h"
+#include "core/power.h"
 
 const uint16_t ctcss_tone[CTCSS_FREQ_NUM] =
 {
@@ -25,7 +26,7 @@ channel_t cps_getDefaultChannel()
     channel.mode      = OPMODE_FM;
     #endif
     channel.bandwidth = BW_25;
-    channel.power     = 1000;   // 1W
+    channel.power     = powerGetDefaultStoredValue();
     channel.rx_only   = false;  // Enable tx by default
 
     // Set initial frequency based on supported bands

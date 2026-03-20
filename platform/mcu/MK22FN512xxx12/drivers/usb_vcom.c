@@ -125,6 +125,7 @@ USB_DATA_ALIGNMENT static uint8_t recvBuf[FS_CDC_VCOM_BULK_OUT_PACKET_SIZE];
 USB_DATA_ALIGNMENT static uint8_t sendBuf[FS_CDC_VCOM_BULK_OUT_PACKET_SIZE];
 static volatile uint32_t recvSize = 0;
 static uint32_t usbBulkMaxPacketSize = FS_CDC_VCOM_BULK_OUT_PACKET_SIZE;
+static volatile bool txBusy = false;
 
 /*!
  * @brief Interrupt in pipe callback function.
@@ -180,6 +181,7 @@ usb_status_t USB_DeviceCdcAcmBulkIn(usb_device_handle handle,
         if ((message->buffer != NULL) || ((message->buffer == NULL) && (message->length == 0)))
         {
             /* User: add your own code for send complete event */
+            txBusy = false;
             /* Schedule buffer for next receive event */
             USB_DeviceRecvRequest(handle, USB_CDC_VCOM_BULK_OUT_ENDPOINT, recvBuf, usbBulkMaxPacketSize);
         }
@@ -623,6 +625,33 @@ void vcom_init()
     NVIC_EnableIRQ(USB0_IRQn);
 
     USB_DeviceRun(cdcVcom.deviceHandle);
+}
+
+bool vcom_isConnected()
+{
+    return (cdcVcom.attach == 1) && (cdcVcom.startTransactions == 1);
+}
+
+ssize_t vcom_writeBlockNonblocking(const void *buf, size_t len)
+{
+    uint32_t xFerLen;
+
+    if((cdcVcom.attach != 1) || (cdcVcom.startTransactions != 1) || (txBusy == true) || (len == 0))
+        return 0;
+
+    xFerLen = (len > FS_CDC_VCOM_BULK_OUT_PACKET_SIZE)
+            ? FS_CDC_VCOM_BULK_OUT_PACKET_SIZE : len;
+
+    memcpy(sendBuf, buf, xFerLen);
+    if(USB_DeviceSendRequest(cdcVcom.deviceHandle,
+                             USB_CDC_VCOM_BULK_IN_ENDPOINT,
+                             sendBuf, xFerLen) != kStatus_USB_Success)
+    {
+        return -1;
+    }
+
+    txBusy = true;
+    return xFerLen;
 }
 
 ssize_t vcom_writeBlock(const void *buf, size_t len)

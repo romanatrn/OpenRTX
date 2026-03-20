@@ -96,5 +96,8 @@ const stringsTable_t spanishStrings =
     .CAN               = "CAN",
     .canRxCheck        = "CAN RX Check",
     .ppmFreqOffset     = "Offset de Freq. PPM",
+    .developerConsole  = "Developer Console",
+    .usbLogExport      = "Log USB",
+    .noLogs            = "Sin logs",
 };
 #endif  // SPANISHSTRINGS_H

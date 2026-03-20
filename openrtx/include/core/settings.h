@@ -48,7 +48,9 @@ typedef struct
             m17_can         : 4;  // M17 CAN
     uint8_t vpLevel         : 3,  // Voice prompt level
             vpPhoneticSpell : 1,  // Phonetic spell enabled
-            macroMenuLatch  : 1;  // Automatic latch of macro menu
+            macroMenuLatch  : 1,  // Automatic latch of macro menu
+            powerProfile    : 2,  // TX power range / sweep profile
+            usbLogExport    : 1;  // Mirror developer logs to USB CDC
     uint8_t theme;                // UI color theme
     bool    m17_can_rx;           // Check M17 CAN on RX
     char    m17_dest[10];         // M17 destination
@@ -86,6 +88,8 @@ static const settings_t default_settings =
     0,
     0,
     1,
+    0,
+    0,
     0,
     false,
     "",

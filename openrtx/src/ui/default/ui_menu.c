@@ -8,6 +8,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "core/dev_console.h"
+#include "core/power.h"
 #include "core/repeater.h"
 #include "core/utils.h"
 #include "ui/gps_map.h"
@@ -386,6 +388,12 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
         case R_PPM:
             snprintf(buf, max_len, "%gppm", (float)last_state.settings.ppm_offset / 10.0f);
             break;
+        case R_POWER_RANGE:
+            sniprintf(buf, max_len, "%s", powerGetProfileName(last_state.settings.powerProfile));
+            return 0;
+        case R_USB_LOG_EXPORT:
+            sniprintf(buf, max_len, "%s", devConsole_getUsbExportEnabled() ? currentLanguage->on : currentLanguage->off);
+            return 0;
     }
 
     if (index != R_PPM) {
@@ -594,6 +602,12 @@ int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
 {
     const hwInfo_t* hwinfo = platform_getHwInfo();
     if(index >= info_num) return -1;
+    if(index == (info_num - 1))
+    {
+        sniprintf(buf, max_len, "%s", currentLanguage->menu);
+        return 0;
+    }
+
     switch(index)
     {
         case 0: // Git Version
@@ -795,9 +809,7 @@ int _ui_getChannelEditValueName(char *buf, uint8_t max_len, uint8_t index)
             sniprintf(buf, max_len, "%s", (channel->bandwidth == BW_12_5) ? "12.5 kHz" : "25 kHz");
             return 0;
         case CE_POWER:
-            sniprintf(buf, max_len, "%lu.%01luW",
-                      (unsigned long) (channel->power / 1000),
-                      (unsigned long) ((channel->power % 1000) / 100));
+            powerFormatLabel(buf, max_len, channel->power, channel->tx_frequency, false);
             return 0;
         case CE_ZONE:
             if(ui_state.channel_edit_zone < 0)
@@ -1246,11 +1258,12 @@ void _ui_drawMenuBackup(ui_state_t* ui_state)
     gfx_print(line, FONT_SIZE_8PT, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->pressPTTToStart);
 
-   if (!platform_getPttStatus())
+    if (!platform_getPttStatus())
         return;
 
     state.devStatus     = DATATRANSFER;
     state.backup_eflash = true;
+    devConsole_log(DEVLOG_INFO, "CPS", "Flash backup started");
 }
 
 void _ui_drawMenuRestore(ui_state_t* ui_state)
@@ -1277,6 +1290,7 @@ void _ui_drawMenuRestore(ui_state_t* ui_state)
 
     state.devStatus      = DATATRANSFER;
     state.restore_eflash = true;
+    devConsole_log(DEVLOG_INFO, "CPS", "Flash restore started");
 }
 
 void _ui_drawMenuInfo(ui_state_t* ui_state)
@@ -1288,6 +1302,41 @@ void _ui_drawMenuInfo(ui_state_t* ui_state)
     // Print menu entries
     _ui_drawMenuListValue(ui_state, ui_state->menu_selected, _ui_getInfoEntryName,
                            _ui_getInfoValueName);
+}
+
+void _ui_drawMenuDevConsole(ui_state_t* ui_state)
+{
+    _ui_clearScreen();
+
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, currentLanguage->developerConsole);
+
+    size_t lineCount = devConsole_getDisplayRowCount(MAX_ENTRY_LEN - 1);
+    uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / layout.menu_h;
+    size_t maxScroll = (lineCount > visibleLines) ? (lineCount - visibleLines) : 0;
+    point_t pos = layout.line1_pos;
+    char lineBuf[MAX_ENTRY_LEN] = {0};
+
+    if(ui_state->menu_selected > maxScroll)
+        ui_state->menu_selected = maxScroll;
+
+    if(lineCount == 0)
+    {
+        gfx_print(pos, layout.menu_font, TEXT_ALIGN_CENTER,
+                  color_white, currentLanguage->noLogs);
+        return;
+    }
+
+    for(uint8_t item = 0; item < visibleLines; item++)
+    {
+        size_t lineIndex = ui_state->menu_selected + item;
+
+        if(devConsole_getDisplayRow(lineIndex, MAX_ENTRY_LEN - 1, lineBuf, sizeof(lineBuf)) == false)
+            break;
+
+        gfx_print(pos, layout.menu_font, TEXT_ALIGN_LEFT, color_white, lineBuf);
+        pos.y += layout.menu_h;
+    }
 }
 
 void _ui_drawMenuAbout(ui_state_t* ui_state)
@@ -1758,10 +1807,11 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_RIGHT,
               yellow_fab413, "6        ");
 
-    unsigned int power_int = (last_state.channel.power / 1000);
-    unsigned int power_dec = (last_state.channel.power % 1000) / 100;
+    char powerBuf[16] = "";
+    powerFormatLabel(powerBuf, sizeof(powerBuf), last_state.channel.power,
+                     last_state.channel.tx_frequency, true);
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_RIGHT,
-              color_white, "%d.%dW", power_int, power_dec);
+              color_white, "%s", powerBuf);
 
     // Third row
 #if defined(CONFIG_UI_NO_KEYBOARD)

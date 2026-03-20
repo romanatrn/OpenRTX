@@ -9,12 +9,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include "core/event.h"
+#include "core/power.h"
+#include "core/dev_console.h"
 #include "core/state.h"
 #include "core/battery.h"
 #include "hwconfig.h"
 #include "interfaces/platform.h"
 #include "interfaces/nvmem.h"
 #include "interfaces/delays.h"
+#include "rtx/rtx.h"
 
 state_t state;
 pthread_mutex_t state_mutex;
@@ -22,6 +25,107 @@ static long long int lastUpdate = 0;
 static settings_t lastPersistedSettings;
 static long long settingsDirtySince = 0;
 static const long long settingsSaveDelay = 3000;
+
+void state_getPersistedSettingsSnapshot(settings_t *settings)
+{
+    *settings = state.settings;
+    settings->usbLogExport = false;
+    settings->sqlLevel = default_settings.sqlLevel;
+}
+static bool m17LogPrimed = false;
+static uint8_t lastM17OpMode = OPMODE_NONE;
+static uint8_t lastM17OpStatus = OFF;
+static bool lastM17LsfOk = false;
+static char lastM17Src[10] = {0};
+static char lastM17Dst[10] = {0};
+static char lastM17Link[10] = {0};
+static char lastM17Refl[10] = {0};
+static char lastM17Meta[53] = {0};
+
+static void _state_logM17Status(void)
+{
+    rtxStatus_t rtx = rtx_getCurrentStatus();
+
+    if(rtx.opMode != OPMODE_M17)
+    {
+        lastM17OpMode = rtx.opMode;
+        lastM17OpStatus = rtx.opStatus;
+        lastM17LsfOk = false;
+        lastM17Src[0] = '\0';
+        lastM17Dst[0] = '\0';
+        lastM17Link[0] = '\0';
+        lastM17Refl[0] = '\0';
+        lastM17Meta[0] = '\0';
+        m17LogPrimed = false;
+        return;
+    }
+
+    if(m17LogPrimed == false)
+    {
+        lastM17OpMode = rtx.opMode;
+        lastM17OpStatus = rtx.opStatus;
+        lastM17LsfOk = rtx.lsfOk;
+        strncpy(lastM17Src, rtx.M17_src, sizeof(lastM17Src));
+        strncpy(lastM17Dst, rtx.M17_dst, sizeof(lastM17Dst));
+        strncpy(lastM17Link, rtx.M17_link, sizeof(lastM17Link));
+        strncpy(lastM17Refl, rtx.M17_refl, sizeof(lastM17Refl));
+        strncpy(lastM17Meta, rtx.M17_meta_text, sizeof(lastM17Meta));
+        lastM17Src[sizeof(lastM17Src) - 1] = '\0';
+        lastM17Dst[sizeof(lastM17Dst) - 1] = '\0';
+        lastM17Link[sizeof(lastM17Link) - 1] = '\0';
+        lastM17Refl[sizeof(lastM17Refl) - 1] = '\0';
+        lastM17Meta[sizeof(lastM17Meta) - 1] = '\0';
+        m17LogPrimed = true;
+        return;
+    }
+
+    if((lastM17OpStatus != RX) && (rtx.opStatus == RX))
+        devConsole_log(DEVLOG_INFO, "M17", "RX active");
+
+    if((lastM17OpStatus != TX) && (rtx.opStatus == TX))
+        devConsole_log(DEVLOG_INFO, "M17", "TX active");
+
+    if((lastM17OpStatus != OFF) && (rtx.opStatus == OFF))
+        devConsole_log(DEVLOG_INFO, "M17", "Idle");
+
+    if((lastM17LsfOk == false) && rtx.lsfOk)
+        devConsole_log(DEVLOG_INFO, "M17", "LSF %s>%s", rtx.M17_src, rtx.M17_dst);
+
+    if(lastM17LsfOk && (rtx.lsfOk == false))
+        devConsole_log(DEVLOG_WARN, "M17", "LSF lost");
+
+    if(rtx.lsfOk)
+    {
+        if((rtx.M17_link[0] != '\0') && (strncmp(lastM17Link, rtx.M17_link, sizeof(lastM17Link)) != 0))
+            devConsole_log(DEVLOG_INFO, "M17", "Link %s", rtx.M17_link);
+
+        if((rtx.M17_refl[0] != '\0') && (strncmp(lastM17Refl, rtx.M17_refl, sizeof(lastM17Refl)) != 0))
+            devConsole_log(DEVLOG_INFO, "M17", "Refl %s", rtx.M17_refl);
+
+        if((rtx.M17_meta_text[0] != '\0') && (strncmp(lastM17Meta, rtx.M17_meta_text, sizeof(lastM17Meta)) != 0))
+            devConsole_log(DEVLOG_DEBUG, "M17", "Meta %s", rtx.M17_meta_text);
+    }
+
+    lastM17OpMode = rtx.opMode;
+    lastM17OpStatus = rtx.opStatus;
+    lastM17LsfOk = rtx.lsfOk;
+    strncpy(lastM17Src, rtx.M17_src, sizeof(lastM17Src));
+    strncpy(lastM17Dst, rtx.M17_dst, sizeof(lastM17Dst));
+    strncpy(lastM17Link, rtx.M17_link, sizeof(lastM17Link));
+    strncpy(lastM17Refl, rtx.M17_refl, sizeof(lastM17Refl));
+    strncpy(lastM17Meta, rtx.M17_meta_text, sizeof(lastM17Meta));
+    lastM17Src[sizeof(lastM17Src) - 1] = '\0';
+    lastM17Dst[sizeof(lastM17Dst) - 1] = '\0';
+    lastM17Link[sizeof(lastM17Link) - 1] = '\0';
+    lastM17Refl[sizeof(lastM17Refl) - 1] = '\0';
+    lastM17Meta[sizeof(lastM17Meta) - 1] = '\0';
+}
+
+static void _state_normalizePowerSelection(void)
+{
+    state.channel.power = powerNormalizeStoredValue(state.channel.power,
+                                                    state.settings.powerProfile);
+}
 
 // Commonly used frequency steps, expressed in Hz
 const uint32_t freq_steps[] = { 1000, 5000, 6250, 10000, 12500, 15000,
@@ -32,6 +136,7 @@ const size_t n_freq_steps   = sizeof(freq_steps) / sizeof(freq_steps[0]);
 void state_init()
 {
     pthread_mutex_init(&state_mutex, NULL);
+    devConsole_init();
 
     /*
      * Try loading settings from nonvolatile memory and default to sane values
@@ -43,6 +148,9 @@ void state_init()
         strncpy(state.settings.callsign, "OPNRTX", 10);
         strncpy(state.settings.M17_meta_text, "OPENRTX", 53);
     }
+
+    if(state.settings.powerProfile >= POWER_PROFILE_MAX)
+        state.settings.powerProfile = POWER_PROFILE_5W;
 
     /*
      * Try loading VFO configuration from nonvolatile memory and default to sane
@@ -78,36 +186,52 @@ void state_init()
         state.settings.brightness = 100;
     }
 
-    lastPersistedSettings = state.settings;
+    _state_normalizePowerSelection();
+
+    state.settings.usbLogExport = false;
+    state.settings.sqlLevel = default_settings.sqlLevel;
+    devConsole_setUsbExportEnabled(false);
+
+    state_getPersistedSettingsSnapshot(&lastPersistedSettings);
 }
 
 void state_terminate()
 {
-    // Never store a brightness of 0 to avoid booting with a black screen
-    if(state.settings.brightness == 0)
-    {
-        state.settings.brightness = 5;
-    }
+    settings_t settingsCopy;
 
-    nvm_writeSettingsAndVfo(&state.settings, &state.channel);
+    state_getPersistedSettingsSnapshot(&settingsCopy);
+
+    // Never store a brightness of 0 to avoid booting with a black screen
+    if(settingsCopy.brightness == 0)
+    {
+        settingsCopy.brightness = 5;
+    }
+    nvm_writeSettingsAndVfo(&settingsCopy, &state.channel);
     pthread_mutex_destroy(&state_mutex);
 }
 
 int state_saveSettings()
 {
-    settings_t settingsCopy = state.settings;
+    settings_t settingsCopy;
+
+    state_getPersistedSettingsSnapshot(&settingsCopy);
 
     if(nvm_writeSettings(&settingsCopy) < 0)
+    {
+        devConsole_log(DEVLOG_ERROR, "STATE", "Settings save failed");
         return -1;
+    }
 
     lastPersistedSettings = settingsCopy;
     settingsDirtySince = 0;
+    devConsole_log(DEVLOG_INFO, "STATE", "Settings saved");
     return 0;
 }
 
 void state_task()
 {
     bool saveSettings = false;
+    settings_t currentPersistedSettings;
 
     // Update radio state once every 100ms
     if((getTick() - lastUpdate) < 100)
@@ -149,7 +273,10 @@ void state_task()
     state.time = platform_getCurrentTime();
     #endif
 
-    if(memcmp(&state.settings, &lastPersistedSettings, sizeof(settings_t)) != 0)
+    state_getPersistedSettingsSnapshot(&currentPersistedSettings);
+
+    if(memcmp(&currentPersistedSettings, &lastPersistedSettings,
+              sizeof(settings_t)) != 0)
     {
         if(settingsDirtySince == 0)
             settingsDirtySince = lastUpdate;
@@ -165,6 +292,8 @@ void state_task()
 
     pthread_mutex_unlock(&state_mutex);
 
+    _state_logM17Status();
+
     if(saveSettings)
     {
         if(state_saveSettings() == 0)
@@ -178,4 +307,7 @@ void state_resetSettingsAndVfo()
 {
     state.settings = default_settings;
     state.channel  = cps_getDefaultChannel();
+    state.settings.usbLogExport = false;
+    devConsole_setUsbExportEnabled(false);
+    devConsole_log(DEVLOG_WARN, "STATE", "Settings reset to defaults");
 }

@@ -20,6 +20,7 @@
 #include "core/input.h"
 #include "core/backup.h"
 #include "core/gps.h"
+#include "core/dev_console.h"
 #include "core/voicePrompts.h"
 
 #if defined(PLATFORM_TTWRPLUS)
@@ -66,6 +67,7 @@ void *ui_threadFunc(void *arg)
         ui_idleTick();
 
         vp_tick();                           // continue playing voice prompts in progress if any.
+        devConsole_process();
 
         // If synchronization needed take mutex and update RTX configuration
         if(sync_rtx)
@@ -135,7 +137,14 @@ void *main_thread(void *arg)
     #if defined(CONFIG_GPS)
     const struct gpsDevice *gps = platform_initGps();
     if(gps != NULL)
+    {
         state.gpsDetected = true;
+        devConsole_log(DEVLOG_INFO, "GPS", "GPS interface detected");
+    }
+    else
+    {
+        devConsole_log(DEVLOG_WARN, "GPS", "GPS interface not detected");
+    }
     #endif
 
     while(state.devStatus != SHUTDOWN)

@@ -29,6 +29,8 @@ void M17FrameDecoder::reset()
     lsf.clear();
     lsfFromLich.clear();
     streamFrame.clear();
+    lastBitErrors = 0;
+    lastLichDecoded = false;
 }
 
 M17FrameType M17FrameDecoder::decodeFrame(const frame_t &frame)
@@ -112,6 +114,7 @@ void M17FrameDecoder::decodeStream(const std::array<uint8_t, 46> &data)
 
     std::copy_n(data.begin(), lich.size(), lich.begin());
     bool decodeOk = decodeLich(lsfSegment, lich);
+    lastLichDecoded = decodeOk;
 
     if (decodeOk) {
         // Append LICH segment
@@ -143,6 +146,7 @@ void M17FrameDecoder::decodeStream(const std::array<uint8_t, 46> &data)
 
     // Skip payload copy if BER is too high to avoid audio artifacts
     uint16_t bitErrs = viterbi.decodePunctured(punctured, tmp, DATA_PUNCTURE);
+    lastBitErrors = bitErrs;
     if (bitErrs < MAX_VITERBI_ERRORS)
         memcpy(&streamFrame.data, tmp.data(), tmp.size());
 }

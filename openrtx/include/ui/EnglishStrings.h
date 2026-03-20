@@ -96,5 +96,8 @@ const stringsTable_t englishStrings =
     .canRxCheck        = "CAN RX Check",
     .metaText          = "Meta Txt",
     .ppmFreqOffset     = "PPM Freq. Offset",
+    .developerConsole  = "Developer Console",
+    .usbLogExport      = "USB Log Export",
+    .noLogs            = "No logs yet",
 };
 #endif  // ENGLISHSTRINGS_H

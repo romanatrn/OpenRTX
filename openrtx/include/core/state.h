@@ -110,6 +110,11 @@ void state_task();
 int state_saveSettings();
 
 /**
+ * Copy the persistable settings view used for dirty tracking and flash writes.
+ */
+void state_getPersistedSettingsSnapshot(settings_t *settings);
+
+/**
  * Request that the UI thread synchronises the latest state into the RTX layer.
  */
 void state_requestRtxSync();

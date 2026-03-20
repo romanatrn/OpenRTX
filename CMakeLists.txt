@@ -85,6 +85,7 @@ target_sources(app
     openrtx/src/core/graphics.c
     openrtx/src/core/input.c
     openrtx/src/core/utils.c
+    openrtx/src/core/power.c
     openrtx/src/core/queue.c
     openrtx/src/core/chan.c
     openrtx/src/core/gps.c

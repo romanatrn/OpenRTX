@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "core/utils.h"
+#include "core/power.h"
 #include <inttypes.h>
 #include "ui/ui_default.h"
 #include "core/beeps.h"
@@ -166,13 +167,13 @@ void vp_announcePower(const uint32_t power, const vpQueueFlags_t flags)
         vp_queuePrompt(PROMPT_POWER);
     }
 
-    // Compute x.y format avoiding to pull in floating point math.
-    // Remember that power is expressed in mW!
     char buffer[16] = "\0";
-    sniprintf(buffer, 16, "%lu.%lu", (power / 1000lu), (power % 1000lu) / 100lu);
+    powerFormatVoiceLabel(buffer, sizeof(buffer), power);
 
     vp_queueString(buffer, vpAnnounceCommonSymbols);
+#if !defined(PLATFORM_MDUV3x0)
     vp_queuePrompt(PROMPT_WATTS);
+#endif
     playIfNeeded(flags);
 }
 

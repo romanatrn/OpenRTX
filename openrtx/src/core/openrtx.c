@@ -12,6 +12,7 @@
 #include "core/voicePrompts.h"
 #include "core/graphics.h"
 #include "core/openrtx.h"
+#include "core/dev_console.h"
 #include "core/threads.h"
 #include "core/state.h"
 #include "core/ui.h"
@@ -27,7 +28,6 @@ void openrtx_init()
 
     platform_init();    // Initialize low-level platform drivers
     state_init();       // Initialize radio state
-
     gfx_init();         // Initialize display and graphics driver
     kbd_init();         // Initialize keyboard driver
     ui_init();          // Initialize user interface
@@ -65,7 +65,6 @@ void *openrtx_run(void *arg)
     (void) arg;
 
     state.devStatus = RUNNING;
-
     // Start the OpenRTX threads
     create_threads();
 

@@ -62,7 +62,9 @@
 #include "core/battery.h"
 #include "core/input.h"
 #include "core/repeater.h"
+#include "core/power.h"
 #include "core/scan.h"
+#include "core/dev_console.h"
 #include "core/utils.h"
 #include "hwconfig.h"
 #include "ui/ui_games.h"
@@ -109,6 +111,7 @@ extern void _ui_drawMenuBackupRestore(ui_state_t* ui_state);
 extern void _ui_drawMenuBackup(ui_state_t* ui_state);
 extern void _ui_drawMenuRestore(ui_state_t* ui_state);
 extern void _ui_drawMenuInfo(ui_state_t* ui_state);
+extern void _ui_drawMenuDevConsole(ui_state_t* ui_state);
 extern void _ui_drawMenuAbout(ui_state_t* ui_state);
 #ifdef CONFIG_RTC
 extern void _ui_drawSettingsTimeDate();
@@ -187,6 +190,8 @@ const char *settings_radio_items[] =
     "Direction",
     "Step",
     "Correction",
+    "Power Range",
+    "USB Log Export",
 };
 
 const char * settings_m17_items[] =
@@ -279,6 +284,7 @@ const char *info_items[] =
     "Radio",
     "Radio FW",
 #endif
+    "Developer Console",
 };
 
 const char *authors[] =
@@ -1088,23 +1094,10 @@ static void _ui_cycleChannelPower(int8_t direction)
 {
     channel_t *channel = _ui_getMemoryEditChannel();
 #if defined(PLATFORM_MDUV3x0)
-    static const uint32_t powerLevels[] = {1000, 2500, 5000};
-    size_t index = 0;
-
-    for(size_t i = 0; i < (sizeof(powerLevels) / sizeof(powerLevels[0])); i++)
-    {
-        if(channel->power <= powerLevels[i])
-        {
-            index = i;
-            break;
-        }
-
-        index = i;
-    }
-
-    index = (index + (sizeof(powerLevels) / sizeof(powerLevels[0])) + direction)
-          % (sizeof(powerLevels) / sizeof(powerLevels[0]));
-    channel->power = powerLevels[index];
+    channel->power = powerNormalizeStoredValue(channel->power,
+                                               state.settings.powerProfile);
+    channel->power = powerGetNextStep(channel->power, direction,
+                                      state.settings.powerProfile);
 #else
     if(direction > 0)
         channel->power = (channel->power == 1000) ? 5000 : 1000;
@@ -2465,12 +2458,16 @@ static bool _ui_isSettingsScreen(const uint8_t screen)
 
 static void _ui_saveSettingsOnExit(bool leaving_settings)
 {
+    settings_t persisted_settings;
+
     if(leaving_settings == false)
         return;
 
-    if(memcmp(&state.settings, &last_saved_settings, sizeof(settings_t)) != 0)
+    state_getPersistedSettingsSnapshot(&persisted_settings);
+
+    if(memcmp(&persisted_settings, &last_saved_settings, sizeof(settings_t)) != 0)
         if(state_saveSettings() == 0)
-            last_saved_settings = state.settings;
+            last_saved_settings = persisted_settings;
 }
 
 static bool _ui_shouldAnnounceSettingChange(long long now)
@@ -2495,7 +2492,7 @@ void ui_init()
     ui_state.gps_map_zoom = GPS_MAP_ZOOM_PROVINCE;
     _ui_resetGPSMapCenter();
     _ui_resetMemoryEditSession();
-    last_saved_settings = state.settings;
+    state_getPersistedSettingsSnapshot(&last_saved_settings);
     last_settings_announce_tick = 0;
     ui_games_init();
     gps_map_resetTrack();
@@ -3938,9 +3935,47 @@ void ui_updateFSM(bool *sync_rtx)
                     _ui_menuUp(info_num);
                 else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
                     _ui_menuDown(info_num);
+                else if((msg.keys & KEY_ENTER) && (ui_state.menu_selected == (info_num - 1)))
+                {
+                    size_t lineCount = devConsole_getDisplayRowCount(MAX_ENTRY_LEN - 1);
+                    uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / layout.menu_h;
+
+                    state.ui_screen = MENU_DEV_CONSOLE;
+                    if(lineCount > visibleLines)
+                        ui_state.menu_selected = lineCount - visibleLines;
+                    else
+                        ui_state.menu_selected = 0;
+                    devConsole_log(DEVLOG_INFO, "UI", "Developer console opened");
+                }
                 else if(msg.keys & KEY_ESC)
                     _ui_menuBack(MENU_TOP);
                 break;
+            case MENU_DEV_CONSOLE:
+            {
+                size_t lineCount = devConsole_getDisplayRowCount(MAX_ENTRY_LEN - 1);
+                uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / layout.menu_h;
+                size_t maxScroll = (lineCount > visibleLines) ? (lineCount - visibleLines) : 0;
+
+                if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                {
+                    if(ui_state.menu_selected > 0)
+                        ui_state.menu_selected -= 1;
+                }
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                {
+                    if(ui_state.menu_selected < maxScroll)
+                        ui_state.menu_selected += 1;
+                }
+                else if(msg.keys & KEY_ENTER)
+                {
+                    devConsole_clear();
+                    devConsole_log(DEVLOG_INFO, "UI", "Console cleared");
+                    ui_state.menu_selected = 0;
+                }
+                else if(msg.keys & KEY_ESC)
+                    _ui_menuBack(MENU_INFO);
+                break;
+            }
             // About screen, scroll without rollover
             case MENU_ABOUT:
                 if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
@@ -4269,6 +4304,35 @@ void ui_updateFSM(bool *sync_rtx)
                                 f1Handled=true;
                             }
                             break;
+                        case R_POWER_RANGE:
+                            if(msg.keys & KEY_UP || msg.keys & KEY_RIGHT || msg.keys & KNOB_RIGHT)
+                            {
+                                state.settings.powerProfile = (state.settings.powerProfile + 1)
+                                                            % POWER_PROFILE_MAX;
+                                state.channel.power = powerNormalizeStoredValue(state.channel.power,
+                                                                                state.settings.powerProfile);
+                            }
+                            else if(msg.keys & KEY_DOWN || msg.keys & KEY_LEFT || msg.keys & KNOB_LEFT)
+                            {
+                                state.settings.powerProfile += POWER_PROFILE_MAX;
+                                state.settings.powerProfile -= 1;
+                                state.settings.powerProfile %= POWER_PROFILE_MAX;
+                                state.channel.power = powerNormalizeStoredValue(state.channel.power,
+                                                                                state.settings.powerProfile);
+                            }
+                            break;
+                        case R_USB_LOG_EXPORT:
+                            if(msg.keys & KEY_UP || msg.keys & KEY_DOWN ||
+                               msg.keys & KEY_LEFT || msg.keys & KEY_RIGHT ||
+                               msg.keys & KNOB_LEFT || msg.keys & KNOB_RIGHT ||
+                               msg.keys & KEY_ENTER)
+                            {
+                                state.settings.usbLogExport = !state.settings.usbLogExport;
+                                devConsole_setUsbExportEnabled(state.settings.usbLogExport);
+                                devConsole_log(DEVLOG_INFO, "USB", "USB log export %s",
+                                               state.settings.usbLogExport ? "enabled" : "disabled");
+                            }
+                            break;
                         default:
                             state.ui_screen = SETTINGS_RADIO;
                     }
@@ -4281,16 +4345,26 @@ void ui_updateFSM(bool *sync_rtx)
                 else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
                     _ui_menuDown(settings_radio_num);
                 else if(msg.keys & KEY_ENTER) {
-                    ui_state.edit_mode = true;
-                    // If we are entering R_SHIFT clear temp offset
-                    if (ui_state.menu_selected == R_SHIFT)
-                        ui_state.new_shift = 0;
-                    else if(ui_state.menu_selected == R_PPM) {
-                        ui_state.new_ppm = abs(state.settings.ppm_offset);
-                        ui_state.new_ppm_sign = (state.settings.ppm_offset < 0) ? -1 : 1;
+                    if(ui_state.menu_selected == R_USB_LOG_EXPORT)
+                    {
+                        state.settings.usbLogExport = !state.settings.usbLogExport;
+                        devConsole_setUsbExportEnabled(state.settings.usbLogExport);
+                        devConsole_log(DEVLOG_INFO, "USB", "USB log export %s",
+                                       state.settings.usbLogExport ? "enabled" : "disabled");
                     }
-                    // Reset input position
-                    ui_state.input_position = 0;
+                    else
+                    {
+                        ui_state.edit_mode = true;
+                        // If we are entering R_SHIFT clear temp offset
+                        if (ui_state.menu_selected == R_SHIFT)
+                        ui_state.new_shift = 0;
+                        else if(ui_state.menu_selected == R_PPM) {
+                            ui_state.new_ppm = abs(state.settings.ppm_offset);
+                            ui_state.new_ppm_sign = (state.settings.ppm_offset < 0) ? -1 : 1;
+                        }
+                        // Reset input position
+                        ui_state.input_position = 0;
+                    }
                 }
                 else if(msg.keys & KEY_ESC)
                     _ui_menuBack(MENU_SETTINGS);
@@ -4671,6 +4745,7 @@ void ui_updateFSM(bool *sync_rtx)
                     {
                         ui_state.edit_mode = false;
                         state_resetSettingsAndVfo();
+                        devConsole_log(DEVLOG_WARN, "UI", "Defaults restored");
                         _ui_menuBack(MENU_SETTINGS);
                     }
                     else if(msg.keys & KEY_ESC)
@@ -4697,6 +4772,7 @@ void ui_updateFSM(bool *sync_rtx)
                     if(msg.keys & KEY_ENTER)
                     {
                         ui_state.edit_mode = false;
+                        devConsole_log(DEVLOG_WARN, "UI", "Factory reset requested");
                         _ui_resetCodeplug(sync_rtx);
                         _ui_menuBack(MENU_SETTINGS);
                     }
@@ -4898,6 +4974,9 @@ bool ui_updateGUI()
         // Info menu screen
         case MENU_INFO:
             _ui_drawMenuInfo(&ui_state);
+            break;
+        case MENU_DEV_CONSOLE:
+            _ui_drawMenuDevConsole(&ui_state);
             break;
         // About menu screen
         case MENU_ABOUT:

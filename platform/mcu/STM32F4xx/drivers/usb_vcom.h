@@ -7,6 +7,7 @@
 #ifndef USB_VCOM_H
 #define USB_VCOM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
 
@@ -26,6 +27,9 @@ extern "C" {
  * @return zero on success, negative value on failure.
  */
 int vcom_init();
+
+bool vcom_isConnected();
+ssize_t vcom_writeBlockNonblocking(const void *buf, size_t len);
 
 /**
 * Write a block of data. This function blocks until all data have been sent.

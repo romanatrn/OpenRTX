@@ -5,6 +5,7 @@
  */
 
 #include "core/backup.h"
+#include "core/dev_console.h"
 #include "core/xmodem.h"
 #include <string.h>
 #include "interfaces/nvmem.h"
@@ -51,12 +52,16 @@ void eflash_dump()
 {
     memAddr = 0;
     W25Qx_wakeup(&eflash);
+    devConsole_log(DEVLOG_INFO, "CPS", "Flash dump begin");
     xmodem_sendData(EFLASH_SIZE, getDataCallback);
+    devConsole_log(DEVLOG_INFO, "CPS", "Flash dump end");
 }
 
 void eflash_restore()
 {
     memAddr = 0;
     W25Qx_wakeup(&eflash);
+    devConsole_log(DEVLOG_INFO, "CPS", "Flash restore begin");
     xmodem_receiveData(EFLASH_SIZE, writeDataCallback);
+    devConsole_log(DEVLOG_INFO, "CPS", "Flash restore end");
 }

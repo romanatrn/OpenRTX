@@ -7,7 +7,9 @@
 #include "wchar.h"
 #include <string.h>
 #include "core/nvmem_access.h"
+#include "core/dev_console.h"
 #include "core/nvmem_device.h"
+#include "core/power.h"
 #include "interfaces/cps_io.h"
 #include "core/utils.h"
 #include "cps_data_MDUV3x0.h"
@@ -220,9 +222,11 @@ static int _channelToMemory(mduv3x0Channel_t *dst, const channel_t *src)
     dst->rx_frequency = _binToBcd(src->rx_frequency / 10);
     dst->tx_frequency = _binToBcd(src->tx_frequency / 10);
 
-    if(src->power <= 1000)
+    uint32_t powerMilliWatt = powerGetDisplayMilliWatt(src->power, src->tx_frequency);
+
+    if(powerMilliWatt <= 1000)
         dst->power = 0;
-    else if(src->power <= 2500)
+    else if(powerMilliWatt <= 2500)
         dst->power = 2;
     else
         dst->power = 3;
@@ -284,15 +288,15 @@ static int _readChannelAtAddress(channel_t *channel, uint32_t addr)
 
     if(chData.power == 3)
     {
-        channel->power = 5000;  /* High power, 5W */
+        channel->power = powerNormalizeStoredValue(5000, POWER_PROFILE_20W_SWEEP);
     }
     else if(chData.power == 2)
     {
-        channel->power = 2500;  /* Mid power, 2.5W */
+        channel->power = powerNormalizeStoredValue(2500, POWER_PROFILE_20W_SWEEP);
     }
     else
     {
-        channel->power = 1000;  /* Low power, 1W */
+        channel->power = powerNormalizeStoredValue(1000, POWER_PROFILE_20W_SWEEP);
     }
 
     /*
@@ -370,6 +374,7 @@ static int _readChannelAtAddress(channel_t *channel, uint32_t addr)
 int cps_open(char *cps_name)
 {
     (void) cps_name;
+    devConsole_log(DEVLOG_DEBUG, "CPS", "MD-UV3x0 CPS open");
     return 0;
 }
 
@@ -387,6 +392,8 @@ int cps_create(char *cps_name)
 {
     (void) cps_name;
 
+    devConsole_log(DEVLOG_WARN, "CPS", "Creating MD-UV3x0 CPS image");
+
     if(_clearRange(zoneBaseAddr, (maxNumZones + 1) * sizeof(mduv3x0Zone_t)) < 0)
         return -1;
 
@@ -399,6 +406,7 @@ int cps_create(char *cps_name)
     if(_clearRange(contactBaseAddr, (maxNumContacts + 1) * sizeof(mduv3x0Contact_t)) < 0)
         return -1;
 
+    devConsole_log(DEVLOG_INFO, "CPS", "CPS image cleared");
     return 0;
 }
 

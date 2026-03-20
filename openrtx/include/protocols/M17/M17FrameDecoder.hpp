@@ -80,6 +80,16 @@ public:
         return streamFrame;
     }
 
+    uint16_t getLastBitErrors() const
+    {
+        return lastBitErrors;
+    }
+
+    bool isLastLichDecoded() const
+    {
+        return lastLichDecoded;
+    }
+
 private:
     /**
      * Determine frame type by searching which syncword among the standard M17
@@ -123,6 +133,8 @@ private:
     M17LinkSetupFrame lsfFromLich; ///< LSF assembled from LICH segments.
     M17StreamFrame streamFrame;    ///< Latest stream dat frame received.
     M17HardViterbi viterbi;        ///< Viterbi decoder.
+    uint16_t lastBitErrors = 0;    ///< Corrected bit errors for latest stream frame.
+    bool lastLichDecoded = false;  ///< LICH decode status for latest stream frame.
 
     ///< Maximum allowed hamming distance when determining the frame type.
     static constexpr uint8_t MAX_SYNC_HAMM_DISTANCE = 4;
