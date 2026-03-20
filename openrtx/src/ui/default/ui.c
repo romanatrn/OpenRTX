@@ -67,6 +67,8 @@
 #include "core/dev_console.h"
 #include "core/utils.h"
 #include "hwconfig.h"
+
+#define DEV_CONSOLE_WRAP_COLS 28
 #include "ui/ui_games.h"
 #include "ui/gps_map.h"
 #include "core/voicePromptUtils.h"
@@ -1054,6 +1056,7 @@ static void _ui_beginMemoryEditSession(int16_t channel_index, const channel_t *s
 
 static void _ui_cancelMemoryEditSession(bool *sync_rtx)
 {
+    devConsole_log(DEVLOG_INFO, "UI", "Channel edit cancelled");
     state.channel = ui_state.memory_channel_backup;
     *sync_rtx = true;
 
@@ -1354,6 +1357,8 @@ static void _ui_fsm_storeVfoToNewChannel(bool *sync_rtx)
     }
 
     state.ui_screen = MAIN_MEM;
+    devConsole_log(DEVLOG_INFO, "CPS", "Saved VFO to CH%u %s", channel_index + 1,
+                   new_channel.name);
     _ui_announceChannelStored(state.channel_index);
 }
 
@@ -1440,6 +1445,9 @@ static void _ui_fsm_storeCurrentMemoryChannel(bool *sync_rtx)
         }
 
         _ui_fsm_loadChannel(channel_index, sync_rtx);
+        devConsole_log(DEVLOG_INFO, "CPS", "Created CH%u %s mode=%u rx=%u tx=%u",
+                       channel_index + 1, channel.name, channel.mode,
+                       channel.rx_frequency, channel.tx_frequency);
         _ui_announceChannelStored(state.channel_index);
         _ui_resetMemoryEditSession();
         return;
@@ -1467,6 +1475,9 @@ static void _ui_fsm_storeCurrentMemoryChannel(bool *sync_rtx)
         return;
     }
 
+    devConsole_log(DEVLOG_INFO, "CPS", "Updated CH%u %s mode=%u rx=%u tx=%u",
+                   ui_state.memory_edit_index + 1, channel.name, channel.mode,
+                   channel.rx_frequency, channel.tx_frequency);
     _ui_announceChannelStored(state.channel_index);
     _ui_resetMemoryEditSession();
 }
@@ -1943,6 +1954,7 @@ static void _ui_stopVfoScan(bool *sync_rtx, bool announce)
     scan_notifyModeChange();
     if(announce)
         _ui_announceScanState("VFO Scan", false);
+    devConsole_log(DEVLOG_INFO, "SCAN", "VFO scan stopped");
     *sync_rtx = true;
 }
 
@@ -1955,6 +1967,7 @@ static void _ui_stopChannelScan(bool *sync_rtx, bool announce)
     scan_notifyModeChange();
     if(announce)
         _ui_announceScanState("Channel Scan", false);
+    devConsole_log(DEVLOG_INFO, "SCAN", "Channel scan stopped");
     *sync_rtx = true;
 }
 
@@ -1972,6 +1985,7 @@ static void _ui_toggleVfoScan(bool *sync_rtx)
     state.tuner_mode = SCAN;
     scan_notifyModeChange();
     _ui_announceScanState("VFO Scan", true);
+    devConsole_log(DEVLOG_INFO, "SCAN", "VFO scan started");
     *sync_rtx = true;
 }
 
@@ -1989,6 +2003,8 @@ static void _ui_toggleChannelScan(bool *sync_rtx)
     state.tuner_mode = CHSCAN;
     scan_notifyModeChange();
     _ui_announceScanState("Channel Scan", true);
+    devConsole_log(DEVLOG_INFO, "SCAN", "Channel scan started at CH%u",
+                   state.channel_index + 1);
     *sync_rtx = true;
 }
 
@@ -3330,6 +3346,9 @@ void ui_updateFSM(bool *sync_rtx)
                         else
                         {
                             repeater_invalidateNearestCache();
+                            devConsole_log(DEVLOG_INFO, "CPS", "Deleted CH%u %s",
+                                           ui_state.memory_edit_index + 1,
+                                           ui_state.memory_channel_draft.name);
                             ui_state.edit_mode = false;
                             const int16_t display_index = ui_state.memory_edit_index;
                             _ui_resetMemoryEditSession();
@@ -3937,8 +3956,9 @@ void ui_updateFSM(bool *sync_rtx)
                     _ui_menuDown(info_num);
                 else if((msg.keys & KEY_ENTER) && (ui_state.menu_selected == (info_num - 1)))
                 {
-                    size_t lineCount = devConsole_getDisplayRowCount(MAX_ENTRY_LEN - 1);
-                    uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / layout.menu_h;
+                    size_t lineCount = devConsole_getDisplayRowCount(DEV_CONSOLE_WRAP_COLS);
+                    uint8_t consoleRowHeight = layout.menu_h;
+                    uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / consoleRowHeight;
 
                     state.ui_screen = MENU_DEV_CONSOLE;
                     if(lineCount > visibleLines)
@@ -3952,8 +3972,9 @@ void ui_updateFSM(bool *sync_rtx)
                 break;
             case MENU_DEV_CONSOLE:
             {
-                size_t lineCount = devConsole_getDisplayRowCount(MAX_ENTRY_LEN - 1);
-                uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / layout.menu_h;
+                size_t lineCount = devConsole_getDisplayRowCount(DEV_CONSOLE_WRAP_COLS);
+                uint8_t consoleRowHeight = layout.menu_h;
+                uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / consoleRowHeight;
                 size_t maxScroll = (lineCount > visibleLines) ? (lineCount - visibleLines) : 0;
 
                 if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
@@ -4002,7 +4023,10 @@ void ui_updateFSM(bool *sync_rtx)
                                       true, false, "dd/mm/yy");
                 }
                 else if(msg.keys & KEY_ESC)
+                {
+                    devConsole_log(DEVLOG_INFO, "GPS", "GPS settings exit");
                     _ui_menuBack(MENU_SETTINGS);
+                }
                 break;
             // Time&Date settings screen, edit mode
             case SETTINGS_TIMEDATE_SET:
@@ -4130,6 +4154,8 @@ void ui_updateFSM(bool *sync_rtx)
                                 state.settings.gps_enabled = 0;
                             else
                                 state.settings.gps_enabled = 1;
+                            devConsole_log(DEVLOG_INFO, "GPS", "GPS %s",
+                                           state.settings.gps_enabled ? "enabled" : "disabled");
                             if(_ui_shouldAnnounceSettingChange(now))
                                 vp_announceSettingsOnOffToggle(&currentLanguage->gpsEnabled,
                                                                queueFlags,
@@ -4138,6 +4164,8 @@ void ui_updateFSM(bool *sync_rtx)
 #ifdef CONFIG_RTC
                         case G_SET_TIME:
                             state.settings.gpsSetTime = !state.settings.gpsSetTime;
+                            devConsole_log(DEVLOG_INFO, "GPS", "RTC sync %s",
+                                           state.settings.gpsSetTime ? "enabled" : "disabled");
                             if(_ui_shouldAnnounceSettingChange(now))
                                 vp_announceSettingsOnOffToggle(&currentLanguage->gpsSetTime,
                                                                queueFlags,
@@ -4150,6 +4178,8 @@ void ui_updateFSM(bool *sync_rtx)
                             else if(msg.keys & KEY_RIGHT || msg.keys & KEY_UP ||
                                     msg.keys & KNOB_RIGHT)
                                 state.settings.utc_timezone += 1;
+                            devConsole_log(DEVLOG_INFO, "GPS", "Timezone %d",
+                                           state.settings.utc_timezone);
                             if(_ui_shouldAnnounceSettingChange(now))
                                 vp_announceTimeZone(state.settings.utc_timezone, queueFlags);
                             break;
@@ -4384,6 +4414,8 @@ void ui_updateFSM(bool *sync_rtx)
                                 // Save selected callsign and disable input mode
                                 strncpy(state.settings.callsign, ui_state.new_callsign, 10);
                                 ui_state.edit_mode = false;
+                                devConsole_log(DEVLOG_INFO, "M17", "Callsign %s",
+                                               state.settings.callsign);
                                 vp_announceBuffer(&currentLanguage->callsign,
                                                   false, true, state.settings.callsign);
                             }
@@ -4419,6 +4451,7 @@ void ui_updateFSM(bool *sync_rtx)
                                 strncpy(state.settings.M17_meta_text, ui_state.new_message, 52);
                                 ui_state.edit_message = false;
                                 ui_state.edit_mode = false;
+                                devConsole_log(DEVLOG_INFO, "M17", "Meta updated");
                                 vp_announceBuffer(&currentLanguage->metaText,
                                                   false, true, state.settings.M17_meta_text);
                             }
@@ -4448,9 +4481,15 @@ void ui_updateFSM(bool *sync_rtx)
                             break;
                         case M17_CAN:
                             if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
                                 _ui_changeM17Can(-1);
+                                devConsole_log(DEVLOG_INFO, "M17", "CAN %u", state.settings.m17_can);
+                            }
                             else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
                                 _ui_changeM17Can(+1);
+                                devConsole_log(DEVLOG_INFO, "M17", "CAN %u", state.settings.m17_can);
+                            }
                             else if(msg.keys & KEY_ENTER)
                                 ui_state.edit_mode = !ui_state.edit_mode;
                             else if(msg.keys & KEY_ESC)
@@ -4464,6 +4503,8 @@ void ui_updateFSM(bool *sync_rtx)
                             {
                                 state.settings.m17_can_rx =
                                     !state.settings.m17_can_rx;
+                                devConsole_log(DEVLOG_INFO, "M17", "CAN RX check %s",
+                                               state.settings.m17_can_rx ? "enabled" : "disabled");
                             }
                             else if(msg.keys & KEY_ENTER)
                                 ui_state.edit_mode = !ui_state.edit_mode;
@@ -4472,9 +4513,19 @@ void ui_updateFSM(bool *sync_rtx)
                             break;
                         case M17_ENCRYPTION:
                             if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
                                 _ui_changeM17Encryption(-1);
+                                devConsole_log(DEVLOG_INFO, "M17", "Crypto mode=%u sub=%u",
+                                               state.settings.m17_default_encryption,
+                                               state.settings.m17_default_enc_subtype);
+                            }
                             else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
                                 _ui_changeM17Encryption(+1);
+                                devConsole_log(DEVLOG_INFO, "M17", "Crypto mode=%u sub=%u",
+                                               state.settings.m17_default_encryption,
+                                               state.settings.m17_default_enc_subtype);
+                            }
                             else if(msg.keys & KEY_ENTER)
                                 ui_state.edit_mode = !ui_state.edit_mode;
                             else if(msg.keys & KEY_ESC)
@@ -4482,9 +4533,17 @@ void ui_updateFSM(bool *sync_rtx)
                             break;
                         case M17_KEY_SLOT:
                             if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                            {
                                 _ui_changeM17KeySlot(-1);
+                                devConsole_log(DEVLOG_INFO, "M17", "Key slot %u",
+                                               state.settings.m17_default_key_index);
+                            }
                             else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                            {
                                 _ui_changeM17KeySlot(+1);
+                                devConsole_log(DEVLOG_INFO, "M17", "Key slot %u",
+                                               state.settings.m17_default_key_index);
+                            }
                             else if(msg.keys & KEY_ENTER)
                                 ui_state.edit_mode = !ui_state.edit_mode;
                             else if(msg.keys & KEY_ESC)
@@ -4503,6 +4562,7 @@ void ui_updateFSM(bool *sync_rtx)
                                         M17_KEY_HEX_LEN);
                                 state.settings.m17_keys[slot][M17_KEY_HEX_LEN] = '\0';
                                 ui_state.edit_mode = false;
+                                devConsole_log(DEVLOG_INFO, "M17", "Key %u updated", slot + 1);
                             }
                             else if(msg.keys & KEY_ESC)
                             {
@@ -4561,17 +4621,41 @@ void ui_updateFSM(bool *sync_rtx)
                     else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
                         _ui_menuDown(settings_m17_num);
                     else if((msg.keys & KEY_RIGHT) && (ui_state.menu_selected == M17_CAN))
+                    {
                             _ui_changeM17Can(+1);
+                            devConsole_log(DEVLOG_INFO, "M17", "CAN %u", state.settings.m17_can);
+                    }
                     else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_CAN))
+                    {
                             _ui_changeM17Can(-1);
+                            devConsole_log(DEVLOG_INFO, "M17", "CAN %u", state.settings.m17_can);
+                    }
                     else if((msg.keys & KEY_RIGHT) && (ui_state.menu_selected == M17_ENCRYPTION))
+                    {
                             _ui_changeM17Encryption(+1);
+                            devConsole_log(DEVLOG_INFO, "M17", "Crypto mode=%u sub=%u",
+                                           state.settings.m17_default_encryption,
+                                           state.settings.m17_default_enc_subtype);
+                    }
                     else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_ENCRYPTION))
+                    {
                             _ui_changeM17Encryption(-1);
+                            devConsole_log(DEVLOG_INFO, "M17", "Crypto mode=%u sub=%u",
+                                           state.settings.m17_default_encryption,
+                                           state.settings.m17_default_enc_subtype);
+                    }
                     else if((msg.keys & KEY_RIGHT) && (ui_state.menu_selected == M17_KEY_SLOT))
+                    {
                             _ui_changeM17KeySlot(+1);
+                            devConsole_log(DEVLOG_INFO, "M17", "Key slot %u",
+                                           state.settings.m17_default_key_index);
+                    }
                     else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_KEY_SLOT))
+                    {
                             _ui_changeM17KeySlot(-1);
+                            devConsole_log(DEVLOG_INFO, "M17", "Key slot %u",
+                                           state.settings.m17_default_key_index);
+                    }
                     else if(msg.keys & KEY_ESC)
                     {
                         *sync_rtx = true;

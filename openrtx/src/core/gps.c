@@ -5,6 +5,7 @@
  */
 
 #include "interfaces/platform.h"
+#include "core/dev_console.h"
 #include "core/gps.h"
 #include <minmea.h>
 #include <stdio.h>
@@ -30,6 +31,9 @@ static void syncRtc(datetime_t timestamp)
 
     platform_setTime(timestamp);
     rtcSyncDone = true;
+    devConsole_log(DEVLOG_INFO, "GPS", "RTC sync 20%02u-%02u-%02u %02d:%02d:%02d",
+                   timestamp.year, timestamp.month, timestamp.date,
+                   timestamp.hour, timestamp.minute, timestamp.second);
 }
 #endif
 
@@ -48,9 +52,15 @@ void gps_task(const struct gpsDevice *dev)
         gpsEnabled = state.settings.gps_enabled;
 
         if(gpsEnabled)
+        {
             gps_enable(dev);
+            devConsole_log(DEVLOG_INFO, "GPS", "Hardware enabled");
+        }
         else
+        {
             gps_disable(dev);
+            devConsole_log(DEVLOG_INFO, "GPS", "Hardware disabled");
+        }
     }
 
     // GPS disabled, nothing to do

@@ -41,6 +41,42 @@ static char lastM17Dst[10] = {0};
 static char lastM17Link[10] = {0};
 static char lastM17Refl[10] = {0};
 static char lastM17Meta[53] = {0};
+static char lastM17Route[10] = {0};
+static uint8_t lastM17TxCan = 0;
+static uint8_t lastM17RxCan = 0;
+static bool lastM17CanRxEn = false;
+static bool settingsDirtyLogged = false;
+static uint8_t lastGpsFixQuality = 0;
+static uint8_t lastGpsFixType = 0;
+static uint8_t lastGpsTracked = 0;
+static uint8_t lastGpsInView = 0;
+
+static void _state_logGpsStatus(const gps_t *gps)
+{
+    bool hadFix = (lastGpsFixQuality != FIX_QUALITY_NO_FIX);
+    bool hasFix = (gps->fix_quality != FIX_QUALITY_NO_FIX);
+
+    if((hadFix == false) && hasFix)
+        devConsole_log(DEVLOG_INFO, "GPS", "Fix q=%u type=%u sats=%u/%u",
+                       gps->fix_quality, gps->fix_type,
+                       gps->satellites_tracked, gps->satellites_in_view);
+
+    if(hadFix && (hasFix == false))
+        devConsole_log(DEVLOG_WARN, "GPS", "Fix lost");
+
+    if(hasFix && (lastGpsFixType != gps->fix_type))
+        devConsole_log(DEVLOG_INFO, "GPS", "Fix type %u", gps->fix_type);
+
+    if(hasFix && ((lastGpsTracked != gps->satellites_tracked) ||
+                  (lastGpsInView != gps->satellites_in_view)))
+        devConsole_log(DEVLOG_DEBUG, "GPS", "Sats %u/%u",
+                       gps->satellites_tracked, gps->satellites_in_view);
+
+    lastGpsFixQuality = gps->fix_quality;
+    lastGpsFixType = gps->fix_type;
+    lastGpsTracked = gps->satellites_tracked;
+    lastGpsInView = gps->satellites_in_view;
+}
 
 static void _state_logM17Status(void)
 {
@@ -48,6 +84,9 @@ static void _state_logM17Status(void)
 
     if(rtx.opMode != OPMODE_M17)
     {
+        if(lastM17OpMode == OPMODE_M17)
+            devConsole_log(DEVLOG_INFO, "M17", "Mode exit");
+
         lastM17OpMode = rtx.opMode;
         lastM17OpStatus = rtx.opStatus;
         lastM17LsfOk = false;
@@ -56,12 +95,17 @@ static void _state_logM17Status(void)
         lastM17Link[0] = '\0';
         lastM17Refl[0] = '\0';
         lastM17Meta[0] = '\0';
+        lastM17Route[0] = '\0';
+        lastM17TxCan = 0;
+        lastM17RxCan = 0;
+        lastM17CanRxEn = false;
         m17LogPrimed = false;
         return;
     }
 
     if(m17LogPrimed == false)
     {
+        devConsole_log(DEVLOG_INFO, "M17", "Mode enter");
         lastM17OpMode = rtx.opMode;
         lastM17OpStatus = rtx.opStatus;
         lastM17LsfOk = rtx.lsfOk;
@@ -70,11 +114,16 @@ static void _state_logM17Status(void)
         strncpy(lastM17Link, rtx.M17_link, sizeof(lastM17Link));
         strncpy(lastM17Refl, rtx.M17_refl, sizeof(lastM17Refl));
         strncpy(lastM17Meta, rtx.M17_meta_text, sizeof(lastM17Meta));
+        strncpy(lastM17Route, rtx.destination_address, sizeof(lastM17Route));
         lastM17Src[sizeof(lastM17Src) - 1] = '\0';
         lastM17Dst[sizeof(lastM17Dst) - 1] = '\0';
         lastM17Link[sizeof(lastM17Link) - 1] = '\0';
         lastM17Refl[sizeof(lastM17Refl) - 1] = '\0';
         lastM17Meta[sizeof(lastM17Meta) - 1] = '\0';
+        lastM17Route[sizeof(lastM17Route) - 1] = '\0';
+        lastM17TxCan = rtx.txCan;
+        lastM17RxCan = rtx.rxCan;
+        lastM17CanRxEn = rtx.canRxEn;
         m17LogPrimed = true;
         return;
     }
@@ -93,6 +142,14 @@ static void _state_logM17Status(void)
 
     if(lastM17LsfOk && (rtx.lsfOk == false))
         devConsole_log(DEVLOG_WARN, "M17", "LSF lost");
+
+    if(strncmp(lastM17Route, rtx.destination_address, sizeof(lastM17Route)) != 0)
+        devConsole_log(DEVLOG_INFO, "M17", "Route %s", rtx.destination_address);
+
+    if((lastM17TxCan != rtx.txCan) || (lastM17RxCan != rtx.rxCan) ||
+       (lastM17CanRxEn != rtx.canRxEn))
+        devConsole_log(DEVLOG_INFO, "M17", "CAN tx=%u rx=%u chk=%u",
+                       rtx.txCan, rtx.rxCan, rtx.canRxEn ? 1 : 0);
 
     if(rtx.lsfOk)
     {
@@ -114,11 +171,16 @@ static void _state_logM17Status(void)
     strncpy(lastM17Link, rtx.M17_link, sizeof(lastM17Link));
     strncpy(lastM17Refl, rtx.M17_refl, sizeof(lastM17Refl));
     strncpy(lastM17Meta, rtx.M17_meta_text, sizeof(lastM17Meta));
+    strncpy(lastM17Route, rtx.destination_address, sizeof(lastM17Route));
     lastM17Src[sizeof(lastM17Src) - 1] = '\0';
     lastM17Dst[sizeof(lastM17Dst) - 1] = '\0';
     lastM17Link[sizeof(lastM17Link) - 1] = '\0';
     lastM17Refl[sizeof(lastM17Refl) - 1] = '\0';
     lastM17Meta[sizeof(lastM17Meta) - 1] = '\0';
+    lastM17Route[sizeof(lastM17Route) - 1] = '\0';
+    lastM17TxCan = rtx.txCan;
+    lastM17RxCan = rtx.rxCan;
+    lastM17CanRxEn = rtx.canRxEn;
 }
 
 static void _state_normalizePowerSelection(void)
@@ -232,6 +294,7 @@ void state_task()
 {
     bool saveSettings = false;
     settings_t currentPersistedSettings;
+    gps_t gpsSnapshot;
 
     // Update radio state once every 100ms
     if((getTick() - lastUpdate) < 100)
@@ -273,13 +336,22 @@ void state_task()
     state.time = platform_getCurrentTime();
     #endif
 
+    gpsSnapshot = state.gps_data;
+
     state_getPersistedSettingsSnapshot(&currentPersistedSettings);
 
     if(memcmp(&currentPersistedSettings, &lastPersistedSettings,
               sizeof(settings_t)) != 0)
     {
         if(settingsDirtySince == 0)
+        {
             settingsDirtySince = lastUpdate;
+            if(settingsDirtyLogged == false)
+            {
+                devConsole_log(DEVLOG_INFO, "STATE", "Settings changed; save pending");
+                settingsDirtyLogged = true;
+            }
+        }
         else if((lastUpdate - settingsDirtySince) >= settingsSaveDelay)
         {
             saveSettings = true;
@@ -288,11 +360,13 @@ void state_task()
     else
     {
         settingsDirtySince = 0;
+        settingsDirtyLogged = false;
     }
 
     pthread_mutex_unlock(&state_mutex);
 
     _state_logM17Status();
+    _state_logGpsStatus(&gpsSnapshot);
 
     if(saveSettings)
     {

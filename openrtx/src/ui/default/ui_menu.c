@@ -34,6 +34,8 @@ extern const char* _ui_getToneEnabledString(bool tone_tx_enable,
 
 static char priorSelectedMenuName[MAX_ENTRY_LEN] = "\0";
 static char priorSelectedMenuValue[MAX_ENTRY_LEN] = "\0";
+
+#define DEV_CONSOLE_WRAP_COLS 28
 static bool priorEditMode = false;
 static uint32_t lastValueUpdate=0;
 
@@ -604,7 +606,7 @@ int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
     if(index >= info_num) return -1;
     if(index == (info_num - 1))
     {
-        sniprintf(buf, max_len, "%s", currentLanguage->menu);
+        buf[0] = '\0';
         return 0;
     }
 
@@ -1306,23 +1308,26 @@ void _ui_drawMenuInfo(ui_state_t* ui_state)
 
 void _ui_drawMenuDevConsole(ui_state_t* ui_state)
 {
+    const fontSize_t consoleFont = FONT_SIZE_8PT;
+    const uint8_t consoleRowHeight = layout.menu_h;
+
     _ui_clearScreen();
 
     gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
               color_white, currentLanguage->developerConsole);
 
-    size_t lineCount = devConsole_getDisplayRowCount(MAX_ENTRY_LEN - 1);
-    uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / layout.menu_h;
+    size_t lineCount = devConsole_getDisplayRowCount(DEV_CONSOLE_WRAP_COLS);
+    uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT - layout.top_h - 1) / consoleRowHeight;
     size_t maxScroll = (lineCount > visibleLines) ? (lineCount - visibleLines) : 0;
     point_t pos = layout.line1_pos;
-    char lineBuf[MAX_ENTRY_LEN] = {0};
+    char lineBuf[DEV_CONSOLE_WRAP_COLS + 1] = {0};
 
     if(ui_state->menu_selected > maxScroll)
         ui_state->menu_selected = maxScroll;
 
     if(lineCount == 0)
     {
-        gfx_print(pos, layout.menu_font, TEXT_ALIGN_CENTER,
+        gfx_print(pos, consoleFont, TEXT_ALIGN_CENTER,
                   color_white, currentLanguage->noLogs);
         return;
     }
@@ -1331,11 +1336,11 @@ void _ui_drawMenuDevConsole(ui_state_t* ui_state)
     {
         size_t lineIndex = ui_state->menu_selected + item;
 
-        if(devConsole_getDisplayRow(lineIndex, MAX_ENTRY_LEN - 1, lineBuf, sizeof(lineBuf)) == false)
+        if(devConsole_getDisplayRow(lineIndex, DEV_CONSOLE_WRAP_COLS, lineBuf, sizeof(lineBuf)) == false)
             break;
 
-        gfx_print(pos, layout.menu_font, TEXT_ALIGN_LEFT, color_white, lineBuf);
-        pos.y += layout.menu_h;
+        gfx_print(pos, consoleFont, TEXT_ALIGN_LEFT, color_white, lineBuf);
+        pos.y += consoleRowHeight;
     }
 }
 
