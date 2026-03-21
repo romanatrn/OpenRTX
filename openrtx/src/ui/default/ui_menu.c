@@ -14,6 +14,7 @@
 #include "core/preset_channels.h"
 #include "core/power.h"
 #include "core/repeater.h"
+#include "core/scan.h"
 #include "core/utils.h"
 #include "ui/gps_map.h"
 #include "ui/ui_default.h"
@@ -311,6 +312,13 @@ int _ui_getMenuTopEntryName(char *buf, uint8_t max_len, uint8_t index)
 int _ui_getSettingsEntryName(char *buf, uint8_t max_len, uint8_t index)
 {
     if(index >= settings_num) return -1;
+
+    if(index == S_SCAN)
+    {
+        sniprintf(buf, max_len, "%s", scan_isActive() ? "Stop Scan" : "Scan");
+        return 0;
+    }
+
     sniprintf(buf, max_len, "%s", settings_items[index]);
     return 0;
 }
@@ -819,14 +827,6 @@ int _ui_getChannelActionName(char *buf, uint8_t max_len, uint8_t index)
     if(index >= channel_actions) return -1;
     if((ui_state.last_main_state != MAIN_VFO) && (index >= CA_SAVE_VFO_HERE))
         item_index++;
-
-    if(item_index == CA_SCAN)
-    {
-        const bool sameChannel = (last_state.tuner_mode == CHSCAN)
-                              && (last_state.channel_index == ui_state.memory_edit_index);
-        sniprintf(buf, max_len, "%s", sameChannel ? "Stop Scan" : "Scan");
-        return 0;
-    }
 
     sniprintf(buf, max_len, "%s", channel_action_items[item_index]);
     return 0;

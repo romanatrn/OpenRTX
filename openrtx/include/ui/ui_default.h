@@ -9,6 +9,7 @@
 
 #include <stdbool.h>
 #include "core/state.h"
+#include "core/satellite.h"
 #include "core/graphics.h"
 #include "interfaces/keyboard.h"
 #include <stdint.h>
@@ -49,6 +50,8 @@ enum uiScreen
     MENU_CONTACT_RENAME,
     MENU_GAMES,
     MENU_GPS,
+    MENU_SATELLITES,
+    MENU_SATELLITE_INFO,
     MENU_SETTINGS,
     MENU_BACKUP_RESTORE,
     MENU_BACKUP,
@@ -87,6 +90,7 @@ enum menuItems
     M_GAMES,
 #ifdef CONFIG_GPS
     M_GPS,
+    M_SATELLITES,
 #endif
     M_SETTINGS,
     M_INFO,
@@ -107,6 +111,7 @@ enum settingsItems
     S_M17,
 #endif
     S_FM,
+    S_SCAN,
     S_ACCESSIBILITY,
     S_RESET2DEFAULTS,
     S_FACTORY_RESET,
@@ -139,7 +144,6 @@ enum channelActionItems
     CA_OPEN = 0,
     CA_EDIT,
     CA_COPY_TO_VFO,
-    CA_SCAN,
     CA_SAVE_VFO_HERE,
     CA_DELETE
 };
@@ -342,6 +346,12 @@ typedef struct ui_state_t
     int32_t gps_map_center_lat;
     int32_t gps_map_center_lon;
     uint8_t battery_page_scroll;
+    uint8_t satellite_selected;
+    bool satellite_auto_doppler;
+    int32_t satellite_manual_bias_hz;
+    long long satellite_last_update_tick;
+    long long satellite_next_event_tick;
+    satellite_prediction_t satellite_prediction;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)

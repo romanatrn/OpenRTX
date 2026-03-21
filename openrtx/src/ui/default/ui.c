@@ -64,6 +64,7 @@
 #include "core/input.h"
 #include "core/preset_channels.h"
 #include "core/repeater.h"
+#include "core/satellite.h"
 #include "core/power.h"
 #include "core/scan.h"
 #include "core/dev_console.h"
@@ -105,6 +106,8 @@ extern void _ui_drawMenuContactRename(ui_state_t* ui_state);
 extern void ui_games_drawLibrary(ui_state_t* ui_state);
 #ifdef CONFIG_GPS
 extern void _ui_drawMenuGPS();
+extern void _ui_drawMenuSatellites(ui_state_t* ui_state);
+extern void _ui_drawSatelliteInfo(ui_state_t* ui_state);
 extern void _ui_drawSettingsGPS(ui_state_t* ui_state);
 #endif
 
@@ -140,6 +143,7 @@ const char *menu_items[] =
     "Games",
 #ifdef CONFIG_GPS
     "GPS",
+    "Satellites",
 #endif
     "Settings",
     "Info",
@@ -160,6 +164,7 @@ const char *settings_items[] =
     "M17",
 #endif
     "FM",
+    "Scan",
     "Accessibility",
     "Default Settings",
     "Factory Reset"
@@ -262,7 +267,6 @@ const char *channel_action_items[] =
     "Open",
     "Edit",
     "Copy to VFO",
-    "Scan",
     "Save VFO Here",
     "Delete"
 };
@@ -419,6 +423,88 @@ static long long last_event_tick = 0;
 
 static void _ui_clearTemporaryFmActions(bool *sync_rtx);
 static void _ui_stopVfoScan(bool *sync_rtx, bool announce);
+static void _ui_stopChannelScan(bool *sync_rtx, bool announce);
+static bool _ui_toggleScanFromSettings(bool *sync_rtx);
+
+#ifdef CONFIG_GPS
+static datetime_t _ui_getSatelliteUtcTime(void)
+{
+#ifdef CONFIG_RTC
+    return state.time;
+#else
+    return state.gps_data.timestamp;
+#endif
+}
+
+static void _ui_applySatelliteChannel(bool *sync_rtx)
+{
+    channel_t channel = {0};
+    const satellite_t *satellite = satelliteGetByIndex(ui_state.satellite_selected);
+    int32_t rx_adjust = 0;
+    int32_t tx_adjust = 0;
+
+    if(satellite == NULL)
+        return;
+
+    satelliteConfigureChannel(&channel, ui_state.satellite_selected);
+
+    if(ui_state.satellite_auto_doppler)
+    {
+        rx_adjust += ui_state.satellite_prediction.rx_doppler_hz;
+        tx_adjust += ui_state.satellite_prediction.tx_doppler_hz;
+    }
+
+    rx_adjust += ui_state.satellite_manual_bias_hz;
+    tx_adjust -= ui_state.satellite_manual_bias_hz;
+
+    channel.rx_frequency = satellite->rx_base_hz + rx_adjust;
+    channel.tx_frequency = satellite->tx_base_hz + tx_adjust;
+
+    if((state.channel.rx_frequency != channel.rx_frequency) ||
+       (state.channel.tx_frequency != channel.tx_frequency) ||
+       (strncmp(state.channel.name, channel.name, sizeof(state.channel.name)) != 0))
+    {
+        state.channel = channel;
+        *sync_rtx = true;
+    }
+}
+
+static void _ui_updateSatellitePrediction(bool *sync_rtx, bool force_event_refresh)
+{
+    const long long now = getTick();
+    const bool refresh_next_event = force_event_refresh
+                                 || ((now - ui_state.satellite_next_event_tick) >= 30000);
+    const datetime_t utc_time = _ui_getSatelliteUtcTime();
+
+    if(!force_event_refresh && ((now - ui_state.satellite_last_update_tick) < 1000))
+        return;
+
+    ui_state.satellite_last_update_tick = now;
+
+    satelliteComputePrediction(ui_state.satellite_selected,
+                               &state.gps_data,
+                               &utc_time,
+                               &ui_state.satellite_prediction,
+                               refresh_next_event);
+
+    if(refresh_next_event)
+        ui_state.satellite_next_event_tick = now;
+
+    _ui_applySatelliteChannel(sync_rtx);
+}
+
+static void _ui_openSatelliteScreen(uint8_t index, bool *sync_rtx)
+{
+    ui_state.satellite_selected = index;
+    ui_state.satellite_auto_doppler = true;
+    ui_state.satellite_manual_bias_hz = 0;
+    ui_state.satellite_last_update_tick = 0;
+    ui_state.satellite_next_event_tick = 0;
+    memset(&ui_state.satellite_prediction, 0, sizeof(ui_state.satellite_prediction));
+    state.ui_screen = MENU_SATELLITE_INFO;
+    _ui_updateSatellitePrediction(sync_rtx, true);
+}
+#endif
 
 static void _ui_resetGPSMapCenter(void)
 {
@@ -2075,41 +2161,44 @@ static void _ui_stopChannelScan(bool *sync_rtx, bool announce)
     *sync_rtx = true;
 }
 
-static void _ui_toggleVfoScan(bool *sync_rtx)
+static bool _ui_toggleScanFromSettings(bool *sync_rtx)
 {
-    if(state.ui_screen != MAIN_VFO)
-        return;
-
     if(state.tuner_mode == SCAN)
     {
         _ui_stopVfoScan(sync_rtx, true);
-        return;
+        return true;
     }
-
-    state.tuner_mode = SCAN;
-    scan_notifyModeChange();
-    _ui_announceScanState("VFO Scan", true);
-    devConsole_log(DEVLOG_INFO, "SCAN", "VFO scan started");
-    *sync_rtx = true;
-}
-
-static void _ui_toggleChannelScan(bool *sync_rtx)
-{
-    if(state.ui_screen != MAIN_MEM)
-        return;
 
     if(state.tuner_mode == CHSCAN)
     {
         _ui_stopChannelScan(sync_rtx, true);
-        return;
+        return true;
     }
 
-    state.tuner_mode = CHSCAN;
-    scan_notifyModeChange();
-    _ui_announceScanState("Channel Scan", true);
-    devConsole_log(DEVLOG_INFO, "SCAN", "Channel scan started at CH%u",
-                   state.channel_index + 1);
-    *sync_rtx = true;
+    if(ui_state.last_main_state == MAIN_VFO)
+    {
+        state.tuner_mode = SCAN;
+        scan_notifyModeChange();
+        _ui_announceScanState("VFO Scan", true);
+        devConsole_log(DEVLOG_INFO, "SCAN", "VFO scan started at %u",
+                       state.channel.rx_frequency);
+        *sync_rtx = true;
+        return true;
+    }
+
+    if((ui_state.last_main_state == MAIN_MEM) && state.bank_enabled)
+    {
+        state.tuner_mode = CHSCAN;
+        scan_notifyModeChange();
+        _ui_announceScanState("Channel Scan", true);
+        devConsole_log(DEVLOG_INFO, "SCAN", "Channel scan started in zone %u at CH%u",
+                       state.bank, state.channel_index + 1);
+        *sync_rtx = true;
+        return true;
+    }
+
+    vp_announceError(vpqInit);
+    return false;
 }
 
 static void _ui_copyMemoryToVfo(const uint16_t channel_index, bool *sync_rtx)
@@ -2242,15 +2331,7 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
             }
             break;
         case 5:
-            if(msg.long_press && (state.ui_screen == MAIN_VFO))
-            {
-                _ui_toggleVfoScan(sync_rtx);
-            }
-            else if(msg.long_press && (state.ui_screen == MAIN_MEM))
-            {
-                _ui_toggleChannelScan(sync_rtx);
-            }
-            else if(msg.long_press && (state.channel.mode == OPMODE_FM))
+            if(msg.long_press && (state.channel.mode == OPMODE_FM))
             {
                 _ui_toggleReverse(sync_rtx);
             }
@@ -2767,7 +2848,8 @@ void ui_updateFSM(bool *sync_rtx)
         if (_ui_exitStandby(now) && !(msg.keys & KEY_MONI))
             return;
 
-        if(((state.tuner_mode == SCAN) || (state.tuner_mode == CHSCAN)) &&
+        if((msg.keys != 0) &&
+           ((state.tuner_mode == SCAN) || (state.tuner_mode == CHSCAN)) &&
            ((msg.keys & KEY_MONI) == 0))
         {
             if(state.tuner_mode == SCAN)
@@ -3547,6 +3629,9 @@ void ui_updateFSM(bool *sync_rtx)
                         case M_GPS:
                             state.ui_screen = MENU_GPS;
                             break;
+                        case M_SATELLITES:
+                            state.ui_screen = MENU_SATELLITES;
+                            break;
 #endif
                         case M_SETTINGS:
                             state.ui_screen = MENU_SETTINGS;
@@ -3746,21 +3831,6 @@ void ui_updateFSM(bool *sync_rtx)
                                 break;
                             case CA_COPY_TO_VFO:
                                 _ui_copyMemoryToVfo(ui_state.memory_edit_index, sync_rtx);
-                                break;
-                            case CA_SCAN:
-                                if((state.tuner_mode == CHSCAN) &&
-                                   (state.channel_index == ui_state.memory_edit_index))
-                                {
-                                    _ui_stopChannelScan(sync_rtx, true);
-                                    state.ui_screen = MAIN_MEM;
-                                }
-                                else if(_ui_fsm_loadChannel(ui_state.memory_edit_index, sync_rtx) != -1)
-                                {
-                                    state.ui_screen = MAIN_MEM;
-                                    state.tuner_mode = CHSCAN;
-                                    scan_notifyModeChange();
-                                    _ui_announceScanState("Channel Scan", true);
-                                }
                                 break;
                             case CA_SAVE_VFO_HERE:
                                 if(ui_state.last_main_state == MAIN_VFO)
@@ -3963,6 +4033,67 @@ void ui_updateFSM(bool *sync_rtx)
                 else if(msg.keys & KEY_ESC)
                     _ui_menuBack(MENU_TOP);
                 break;
+
+            case MENU_SATELLITES:
+                if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                {
+                    if(ui_state.menu_selected > 0)
+                        ui_state.menu_selected--;
+                }
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                {
+                    const size_t satellite_count = satelliteGetCount();
+                    if((satellite_count > 0U) && (ui_state.menu_selected + 1U < satellite_count))
+                        ui_state.menu_selected++;
+                }
+                else if(msg.keys & KEY_ENTER)
+                {
+                    _ui_openSatelliteScreen(ui_state.menu_selected, sync_rtx);
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    _ui_menuBack(MENU_TOP);
+                }
+                break;
+
+            case MENU_SATELLITE_INFO:
+                if((msg.keys & KEY_UP) && (ui_state.satellite_selected > 0U))
+                {
+                    ui_state.menu_selected = ui_state.satellite_selected - 1U;
+                    _ui_openSatelliteScreen(ui_state.menu_selected, sync_rtx);
+                }
+                else if((msg.keys & KEY_DOWN) &&
+                        ((ui_state.satellite_selected + 1U) < satelliteGetCount()))
+                {
+                    ui_state.menu_selected = ui_state.satellite_selected + 1U;
+                    _ui_openSatelliteScreen(ui_state.menu_selected, sync_rtx);
+                }
+                else if(msg.keys & KEY_RIGHT || msg.keys & KNOB_RIGHT)
+                {
+                    ui_state.satellite_manual_bias_hz += 1000;
+                    _ui_updateSatellitePrediction(sync_rtx, false);
+                }
+                else if(msg.keys & KEY_LEFT || msg.keys & KNOB_LEFT)
+                {
+                    ui_state.satellite_manual_bias_hz -= 1000;
+                    _ui_updateSatellitePrediction(sync_rtx, false);
+                }
+                else if(msg.keys & KEY_HASH)
+                {
+                    ui_state.satellite_auto_doppler = !ui_state.satellite_auto_doppler;
+                    _ui_updateSatellitePrediction(sync_rtx, true);
+                }
+                else if(msg.keys & KEY_ENTER)
+                {
+                    ui_state.satellite_manual_bias_hz = 0;
+                    _ui_updateSatellitePrediction(sync_rtx, true);
+                }
+                else if(msg.keys & KEY_ESC)
+                {
+                    ui_state.menu_selected = ui_state.satellite_selected;
+                    state.ui_screen = MENU_SATELLITES;
+                }
+                break;
 #endif
             // Settings menu screen
             case MENU_SETTINGS:
@@ -3998,6 +4129,12 @@ void ui_updateFSM(bool *sync_rtx)
 #endif
                         case S_FM:
                             state.ui_screen = SETTINGS_FM;
+                            break;
+                        case S_SCAN:
+                            if(_ui_toggleScanFromSettings(sync_rtx))
+                                state.ui_screen = ui_state.last_main_state;
+                            else
+                                state.ui_screen = MENU_SETTINGS;
                             break;
                         case S_ACCESSIBILITY:
                             state.ui_screen = SETTINGS_ACCESSIBILITY;
@@ -5015,7 +5152,12 @@ void ui_updateFSM(bool *sync_rtx)
         }
 
         // Enable Tx only if in MAIN_VFO or MAIN_MEM states
-        bool inMemOrVfo = (state.ui_screen == MAIN_VFO) || (state.ui_screen == MAIN_MEM);
+        bool inMemOrVfo = (state.ui_screen == MAIN_VFO)
+                       || (state.ui_screen == MAIN_MEM)
+#ifdef CONFIG_GPS
+                       || (state.ui_screen == MENU_SATELLITE_INFO)
+#endif
+                       ;
         if(!inMemOrVfo)
             _ui_clearTemporaryFmActions(sync_rtx);
 
@@ -5068,6 +5210,14 @@ void ui_updateFSM(bool *sync_rtx)
             redraw_needed = true;
         }
 #endif //            CONFIG_GPS
+
+#ifdef CONFIG_GPS
+        if((state.ui_screen == MENU_SATELLITE_INFO) && !txOngoing)
+        {
+            _ui_updateSatellitePrediction(sync_rtx, false);
+            redraw_needed = true;
+        }
+#endif
 
         if (txOngoing || rtx_rxSquelchOpen() || (state.volume != last_state.volume))
         {
@@ -5179,6 +5329,12 @@ bool ui_updateGUI()
         // GPS menu screen
         case MENU_GPS:
             _ui_drawMenuGPS();
+            break;
+        case MENU_SATELLITES:
+            _ui_drawMenuSatellites(&ui_state);
+            break;
+        case MENU_SATELLITE_INFO:
+            _ui_drawSatelliteInfo(&ui_state);
             break;
 #endif
         // Settings menu screen

@@ -18,6 +18,7 @@
 #include <string.h>
 #include "core/utils.h"
 #include "core/input.h"
+#include "core/scan.h"
 #include "core/backup.h"
 #include "core/gps.h"
 #include "core/dev_console.h"
@@ -61,6 +62,12 @@ void *ui_threadFunc(void *arg)
 
         pthread_mutex_lock(&state_mutex);   // Lock r/w access to radio state
         ui_updateFSM(&sync_rtx);            // Update UI FSM
+        scan_task();                        // Update scan state
+        if(state.rtx_sync_pending)
+        {
+            sync_rtx = true;
+            state.rtx_sync_pending = false;
+        }
         ui_saveState();                     // Save local state copy
         pthread_mutex_unlock(&state_mutex); // Unlock r/w access to radio state
 
