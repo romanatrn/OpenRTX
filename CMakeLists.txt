@@ -82,10 +82,12 @@ target_sources(app
     openrtx/src/core/state.c
     openrtx/src/core/threads.c
     openrtx/src/core/battery.c
+    openrtx/src/core/battery_stats.c
     openrtx/src/core/graphics.c
     openrtx/src/core/input.c
     openrtx/src/core/utils.c
     openrtx/src/core/power.c
+    openrtx/src/core/bandplan.c
     openrtx/src/core/queue.c
     openrtx/src/core/chan.c
     openrtx/src/core/gps.c
@@ -95,6 +97,7 @@ target_sources(app
     openrtx/src/core/crc.c
     openrtx/src/core/datetime.c
     openrtx/src/core/openrtx.c
+    openrtx/src/core/preset_channels.c
     openrtx/src/core/repeater.c
     openrtx/src/core/backup.c
     openrtx/src/core/xmodem.c

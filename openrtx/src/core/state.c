@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "core/battery_stats.h"
 #include "core/event.h"
 #include "core/power.h"
 #include "core/dev_console.h"
@@ -214,6 +215,9 @@ void state_init()
     if(state.settings.powerProfile >= POWER_PROFILE_MAX)
         state.settings.powerProfile = POWER_PROFILE_5W;
 
+    if(!bandplanIsValid(state.settings.bandplan))
+        state.settings.bandplan = BANDPLAN_CANADA;
+
     /*
      * Try loading VFO configuration from nonvolatile memory and default to sane
      * values in case of failure.
@@ -231,6 +235,7 @@ void state_init()
     #endif
     state.v_bat  = platform_getVbat();
     state.charge = battery_getCharge(state.v_bat);
+    batteryStatsInit(state.charge);
     state.rssi   = -127.0f;
     state.volume = platform_getVolumeLevel();
 
@@ -330,6 +335,7 @@ void state_task()
     state.volume = vol / 2;
 
     state.charge = battery_getCharge(state.v_bat);
+    batteryStatsUpdate(state.charge);
     state.rssi = rtx_getRssi();
 
     #ifdef CONFIG_RTC

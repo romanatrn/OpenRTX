@@ -8,7 +8,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "core/battery_stats.h"
+#include "core/bandplan.h"
 #include "core/dev_console.h"
+#include "core/preset_channels.h"
 #include "core/power.h"
 #include "core/repeater.h"
 #include "core/utils.h"
@@ -38,6 +41,65 @@ static char priorSelectedMenuValue[MAX_ENTRY_LEN] = "\0";
 #define DEV_CONSOLE_WRAP_COLS 28
 static bool priorEditMode = false;
 static uint32_t lastValueUpdate=0;
+
+static void _ui_formatDuration(char *buf, size_t max_len, uint32_t seconds)
+{
+    uint32_t minutes = (seconds + 30u) / 60u;
+
+    if(seconds < 30u)
+    {
+        sniprintf(buf, max_len, "<1m");
+        return;
+    }
+
+    if(minutes < 60u)
+    {
+        sniprintf(buf, max_len, "%lum", (unsigned long) minutes);
+        return;
+    }
+
+    uint32_t hours = minutes / 60u;
+    minutes %= 60u;
+    if(hours < 24u)
+    {
+        if(minutes == 0u)
+            sniprintf(buf, max_len, "%luh", (unsigned long) hours);
+        else
+            sniprintf(buf, max_len, "%luh %02lum", (unsigned long) hours,
+                      (unsigned long) minutes);
+        return;
+    }
+
+    uint32_t days = hours / 24u;
+    hours %= 24u;
+    if(hours == 0u)
+        sniprintf(buf, max_len, "%lud", (unsigned long) days);
+    else
+        sniprintf(buf, max_len, "%lud %02luh", (unsigned long) days,
+                  (unsigned long) hours);
+}
+
+static void _ui_formatRemainingTime(char *buf, size_t max_len,
+                                    const batteryStatsSnapshot_t *stats)
+{
+    if((stats == NULL) || (stats->estimateValid == false))
+    {
+        sniprintf(buf, max_len, "Calculating");
+        return;
+    }
+
+    _ui_formatDuration(buf, max_len, (uint32_t) stats->remainingMinutes * 60u);
+}
+
+static void _ui_drawBatteryInfoLine(uint16_t y, const char *label,
+                                    const char *value)
+{
+    point_t left = {layout.horizontal_pad + 2, y};
+    point_t right = {CONFIG_SCREEN_WIDTH - layout.horizontal_pad - 3, y};
+
+    gfx_print(left, layout.menu_font, TEXT_ALIGN_LEFT, color_grey, "%s", label);
+    gfx_print(right, layout.menu_font, TEXT_ALIGN_RIGHT, color_white, "%s", value);
+}
 
 const char *display_timer_values[] =
 {
@@ -369,6 +431,9 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
     uint32_t value  = 0;
     switch(index)
     {
+        case R_BAND_PLAN:
+            sniprintf(buf, max_len, "%s", bandplanGetName((bandplan_t) last_state.settings.bandplan));
+            return 0;
         case R_SHIFT:
         {
             uint32_t txFreq = last_state.channel.tx_frequency;
@@ -603,6 +668,8 @@ int _ui_getInfoEntryName(char *buf, uint8_t max_len, uint8_t index)
 int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
 {
     const hwInfo_t* hwinfo = platform_getHwInfo();
+    batteryStatsSnapshot_t stats;
+
     if(index >= info_num) return -1;
     if(index == (info_num - 1))
     {
@@ -610,12 +677,17 @@ int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
         return 0;
     }
 
+    batteryStatsSnapshot(&stats);
+
     switch(index)
     {
-        case 0: // Git Version
+        case 0: // Battery summary
+            sniprintf(buf, max_len, "%d%%", stats.chargePercent);
+            break;
+        case 1: // Git Version
             sniprintf(buf, max_len, "%s", GIT_VERSION);
             break;
-        case 1: // Battery voltage
+        case 2: // Battery voltage
         {
             // Compute integer part and mantissa of voltage value, adding 50mV
             // to mantissa for rounding to nearest integer
@@ -624,32 +696,32 @@ int _ui_getInfoValueName(char *buf, uint8_t max_len, uint8_t index)
             sniprintf(buf, max_len, "%d.%dV", volt, mvolt);
         }
             break;
-        case 2: // Battery charge
+        case 3: // Battery charge
             sniprintf(buf, max_len, "%d%%", last_state.charge);
             break;
-        case 3: // RSSI
+        case 4: // RSSI
             sniprintf(buf, max_len, "%"PRIi32"dBm", last_state.rssi);
             break;
-        case 4: // Heap usage
+        case 5: // Heap usage
             sniprintf(buf, max_len, "%dB", getHeapSize() - getCurrentFreeHeap());
             break;
-        case 5: // Band
+        case 6: // Band
             sniprintf(buf, max_len, "%s %s", hwinfo->vhf_band ? currentLanguage->VHF : "", hwinfo->uhf_band ? currentLanguage->UHF : "");
             break;
-        case 6: // VHF
+        case 7: // VHF
             sniprintf(buf, max_len, "%d - %d", hwinfo->vhf_minFreq, hwinfo->vhf_maxFreq);
             break;
-        case 7: // UHF
+        case 8: // UHF
             sniprintf(buf, max_len, "%d - %d", hwinfo->uhf_minFreq, hwinfo->uhf_maxFreq);
             break;
-        case 8: // LCD Type
+        case 9: // LCD Type
             sniprintf(buf, max_len, "%d", hwinfo->hw_version);
             break;
         #ifdef PLATFORM_TTWRPLUS
-        case 9: // Radio model
+        case 10: // Radio model
             strncpy(buf, sa8x8_getModel(), max_len);
             break;
-        case 10: // Radio firmware version
+        case 11: // Radio firmware version
         {
             // Get FW version string, skip the first nine chars ("sa8x8-fw/")
             uint8_t major, minor, patch, release;
@@ -698,6 +770,11 @@ int _ui_getChannelMenuName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
 {
+    uint16_t visible_bank_ids[4] = {0};
+    const uint8_t preset_count = presetChannelsGetVisibleBankIds((bandplan_t) last_state.settings.bandplan,
+                                                                 visible_bank_ids,
+                                                                 ARRAY_SIZE(visible_bank_ids));
+
     if(index == 0)
     {
         sniprintf(buf, max_len, "All Channels");
@@ -710,13 +787,19 @@ int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
         return 0;
     }
 
-    if(index == 2)
+    if((index >= 2) && (index < (uint8_t) (2 + preset_count)))
+    {
+        sniprintf(buf, max_len, "%s", presetChannelsGetBankName(visible_bank_ids[index - 2]));
+        return 0;
+    }
+
+    if(index == (uint8_t) (2 + preset_count))
     {
         sniprintf(buf, max_len, "Add New");
         return 0;
     }
 
-    return _ui_getBankName(buf, max_len, index - 3);
+    return _ui_getBankName(buf, max_len, index - (3 + preset_count));
 }
 
 int _ui_getChannelEditName(char *buf, uint8_t max_len, uint8_t index)
@@ -1304,6 +1387,119 @@ void _ui_drawMenuInfo(ui_state_t* ui_state)
     // Print menu entries
     _ui_drawMenuListValue(ui_state, ui_state->menu_selected, _ui_getInfoEntryName,
                            _ui_getInfoValueName);
+}
+
+void _ui_drawMenuBatteryInfo(ui_state_t* ui_state)
+{
+    static const char *labels[] =
+    {
+        "Battery",
+        "Time left",
+        "TX used",
+        "RX used",
+        "On time"
+    };
+
+    batteryStatsSnapshot_t stats;
+    char values[5][16] = {{0}};
+
+    batteryStatsSnapshot(&stats);
+    sniprintf(values[0], sizeof(values[0]), "%u%%", stats.chargePercent);
+    _ui_formatRemainingTime(values[1], sizeof(values[1]), &stats);
+    _ui_formatDuration(values[2], sizeof(values[2]), stats.txSeconds);
+    _ui_formatDuration(values[3], sizeof(values[3]), stats.rxSeconds);
+    _ui_formatDuration(values[4], sizeof(values[4]), stats.onSeconds);
+
+    _ui_clearScreen();
+    gfx_print(layout.top_pos, layout.top_font, TEXT_ALIGN_CENTER,
+              color_white, "Battery");
+
+    const bool large_screen = (CONFIG_SCREEN_HEIGHT >= 100);
+    const uint16_t graph_margin = layout.horizontal_pad;
+    const uint16_t icon_width = large_screen ? 22 : 18;
+    const uint16_t icon_height = large_screen ? 11 : 9;
+    point_t icon_pos = {graph_margin, layout.line1_pos.y - 6};
+    gfx_drawBattery(icon_pos, icon_width, icon_height, stats.chargePercent);
+
+    point_t percent_pos = {graph_margin + icon_width + 6, layout.line1_pos.y};
+    gfx_print(percent_pos,
+              large_screen ? layout.line2_font : layout.line1_font,
+              TEXT_ALIGN_LEFT, color_white, "%u%%", stats.chargePercent);
+
+    if(large_screen)
+    {
+        point_t eta_label_pos = {CONFIG_SCREEN_WIDTH - graph_margin, layout.line1_pos.y};
+        gfx_print(eta_label_pos, layout.top_font, TEXT_ALIGN_RIGHT,
+                  color_grey, "Time left");
+    }
+
+    gfx_print(layout.line2_pos, large_screen ? layout.line2_font : layout.menu_font,
+              TEXT_ALIGN_CENTER, color_white, "%s", values[1]);
+
+    uint16_t graph_top = layout.line2_pos.y + (large_screen ? 10 : 2);
+    uint16_t graph_height = large_screen ? 30 : 10;
+    uint16_t graph_width = CONFIG_SCREEN_WIDTH - (graph_margin * 2);
+    point_t graph_origin = {graph_margin, graph_top};
+
+    if(large_screen)
+    {
+        gfx_print(graph_origin, FONT_SIZE_5PT, TEXT_ALIGN_LEFT, color_grey,
+                  "Estimator");
+        graph_origin.y += 7;
+    }
+
+    gfx_drawRect(graph_origin, graph_width, graph_height, color_grey, false);
+
+    point_t midline_start = {graph_origin.x + 1, graph_origin.y + (graph_height / 2)};
+    point_t midline_end = {graph_origin.x + graph_width - 2,
+                           graph_origin.y + (graph_height / 2)};
+    gfx_drawLine(midline_start, midline_end, color_grey);
+
+    if(stats.graphLength > 1)
+    {
+        point_t plot_origin = {graph_origin.x + 1, graph_origin.y + 1};
+        gfx_plotData(plot_origin, graph_width - 3, graph_height - 3,
+                     stats.estimateGraph, stats.graphLength);
+    }
+
+    uint16_t list_top = graph_origin.y + graph_height
+                      + (large_screen ? 7 : 3);
+    uint8_t line_height = layout.menu_h;
+    uint8_t visible = (CONFIG_SCREEN_HEIGHT - list_top - 2) / line_height;
+    if(visible < 1)
+        visible = 1;
+    if(visible > 5)
+        visible = 5;
+
+    uint8_t total = 5;
+    uint8_t max_scroll = (total > visible) ? (total - visible) : 0;
+    if(ui_state->battery_page_scroll > max_scroll)
+        ui_state->battery_page_scroll = max_scroll;
+
+    for(uint8_t i = 0; i < visible; i++)
+    {
+        uint8_t item = ui_state->battery_page_scroll + i;
+        uint16_t y = list_top + (i * line_height);
+        _ui_drawBatteryInfoLine(y, labels[item], values[item]);
+    }
+
+    if(max_scroll > 0)
+    {
+        uint16_t scroll_height = visible * line_height;
+        uint16_t thumb_height = (scroll_height * visible) / total;
+        if(thumb_height < 6)
+            thumb_height = 6;
+
+        point_t track = {CONFIG_SCREEN_WIDTH - 3, list_top};
+        gfx_drawRect(track, 2, scroll_height, color_grey, false);
+
+        uint16_t thumb_y = list_top;
+        thumb_y += ((scroll_height - thumb_height) * ui_state->battery_page_scroll)
+                 / ((max_scroll == 0) ? 1 : max_scroll);
+
+        point_t thumb = {CONFIG_SCREEN_WIDTH - 3, thumb_y};
+        gfx_drawRect(thumb, 2, thumb_height, yellow_fab413, true);
+    }
 }
 
 void _ui_drawMenuDevConsole(ui_state_t* ui_state)

@@ -12,6 +12,7 @@
 #include "core/voicePromptUtils.h"
 
 #include "core/repeater.h"
+#include "core/preset_channels.h"
 #include "core/state.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -502,6 +503,11 @@ void vp_announceBank(const uint16_t bank, const vpQueueFlags_t flags)
         if(state.bank_is_virtual && (bank == REPEATER_NEAREST_BANK))
         {
             vp_queueString("Nearest", vpAnnounceCommonSymbols);
+        }
+        else if(state.bank_is_virtual && presetChannelsIsPresetBank(bank))
+        {
+            const char *bank_name = presetChannelsGetBankName(bank);
+            vp_queueString((bank_name != NULL) ? bank_name : "Preset", vpAnnounceCommonSymbols);
         }
         else
         {

@@ -9,6 +9,7 @@
 #include "interfaces/delays.h"
 #include <stdio.h>
 #include <stdint.h>
+#include "core/preset_channels.h"
 #include "ui/ui_default.h"
 #include <string.h>
 #include "ui/ui_strings.h"
@@ -62,6 +63,16 @@ void _ui_drawBankChannel()
     // Print Bank number, channel number and Channel name
     if(last_state.bank_enabled && last_state.bank_is_virtual)
     {
+        if(presetChannelsIsPresetBank(last_state.bank))
+        {
+            const char *bank_name = presetChannelsGetBankName(last_state.bank);
+            gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
+                      color_white, "%.7s-%02u: %.9s",
+                      (bank_name != NULL) ? bank_name : "Preset",
+                      last_state.channel_index + 1, last_state.channel.name);
+            return;
+        }
+
         gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
                   color_white, "N-%03d: %.12s",
                   last_state.channel_index + 1, last_state.channel.name);
@@ -95,6 +106,27 @@ const char* _ui_getToneEnabledString(bool tone_tx_enable, bool tone_rx_enable,
     uint8_t index = (tone_rx_enable << 1) | (tone_tx_enable);
     return strings[use_abbreviation][index];
 }
+
+#ifdef CONFIG_M17
+static const char *_ui_getM17EncryptionLabel()
+{
+    uint8_t enc = last_state.settings.m17_default_encryption;
+
+    if((last_state.tuner_mode != VFO) && (last_state.channel.mode == OPMODE_M17)
+       && (last_state.channel.m17.encr != PLAIN))
+    {
+        enc = last_state.channel.m17.encr;
+    }
+
+    if(enc == AES)
+        return "AES";
+
+    if(enc == SCRAMBLER)
+        return "SCR";
+
+    return NULL;
+}
+#endif
 
 void _ui_drawModeInfo(ui_state_t* ui_state)
 {
@@ -154,6 +186,8 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
         #ifdef CONFIG_M17
         case OPMODE_M17:
         {
+            const char *encLabel = _ui_getM17EncryptionLabel();
+
             // Print M17 Destination ID on line 3 of 3
             rtxStatus_t rtxStatus = rtx_getCurrentStatus();
 
@@ -172,6 +206,10 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
 
                 gfx_print(layout.line1_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                           color_white, "%s", rtxStatus.M17_src);
+
+                if(encLabel != NULL)
+                    gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_RIGHT,
+                              yellow_fab413, "%s", encLabel);
 
                 // RF link (if present)
                 if(rtxStatus.M17_link[0] != '\0')
@@ -235,6 +273,10 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
 
                 gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                           color_white, "M17 #%s", dst);
+
+                if(encLabel != NULL)
+                    gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_RIGHT,
+                              yellow_fab413, "%s", encLabel);
             }
             break;
         }

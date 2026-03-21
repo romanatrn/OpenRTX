@@ -54,6 +54,7 @@ enum uiScreen
     MENU_BACKUP,
     MENU_RESTORE,
     MENU_INFO,
+    MENU_BATTERY_INFO,
     MENU_DEV_CONSOLE,
     MENU_ABOUT,
     GAME_RUN,
@@ -206,6 +207,7 @@ enum settingsAccessibilityItems
 
 enum settingsRadioItems
 {
+    R_BAND_PLAN,
     R_SHIFT,
     R_DIRECTION,
     R_STEP,
@@ -339,6 +341,7 @@ typedef struct ui_state_t
     bool gps_map_manual_pan;
     int32_t gps_map_center_lat;
     int32_t gps_map_center_lon;
+    uint8_t battery_page_scroll;
     // Which state to return to when we exit menu
     uint8_t last_main_state;
 #if defined(CONFIG_UI_NO_KEYBOARD)

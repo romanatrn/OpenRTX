@@ -60,7 +60,9 @@
 #include "interfaces/delays.h"
 #include <string.h>
 #include "core/battery.h"
+#include "core/bandplan.h"
 #include "core/input.h"
+#include "core/preset_channels.h"
 #include "core/repeater.h"
 #include "core/power.h"
 #include "core/scan.h"
@@ -113,6 +115,7 @@ extern void _ui_drawMenuBackupRestore(ui_state_t* ui_state);
 extern void _ui_drawMenuBackup(ui_state_t* ui_state);
 extern void _ui_drawMenuRestore(ui_state_t* ui_state);
 extern void _ui_drawMenuInfo(ui_state_t* ui_state);
+extern void _ui_drawMenuBatteryInfo(ui_state_t* ui_state);
 extern void _ui_drawMenuDevConsole(ui_state_t* ui_state);
 extern void _ui_drawMenuAbout(ui_state_t* ui_state);
 #ifdef CONFIG_RTC
@@ -188,6 +191,7 @@ const char *settings_gps_items[] =
 
 const char *settings_radio_items[] =
 {
+    "Band Plan",
     "Rpt. shift",
     "Direction",
     "Step",
@@ -273,7 +277,8 @@ const char *contact_edit_items[] =
 
 const char *info_items[] =
 {
-    "",
+    "Battery",
+    "Version",
     "Bat. Voltage",
     "Bat. Charge",
     "RSSI",
@@ -752,25 +757,103 @@ static void _ui_timedate_add_digit(datetime_t *timedate, uint8_t pos,
 }
 #endif
 
+static int16_t _ui_findZoneForChannel(const uint16_t channel_index);
+static uint16_t _ui_getBankCount(void);
+static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx);
+static channel_t *_ui_getMemoryEditChannel(void);
+
 static bool _ui_freq_check_limits(freq_t freq)
 {
-    bool valid = false;
-    const hwInfo_t* hwinfo = platform_getHwInfo();
-    if(hwinfo->vhf_band)
+    return bandplanIsFrequencyInHardwareRange(platform_getHwInfo(), freq);
+}
+
+static bool _ui_custom_freq_allowed(freq_t freq)
+{
+    return bandplanIsFrequencyAllowed(platform_getHwInfo(),
+                                      (bandplan_t) state.settings.bandplan,
+                                      freq);
+}
+
+static uint8_t _ui_getVisiblePresetBankIds(uint16_t *bank_ids, uint8_t max_count)
+{
+    return presetChannelsGetVisibleBankIds((bandplan_t) state.settings.bandplan,
+                                           bank_ids, max_count);
+}
+
+static uint8_t _ui_getBankMenuBuiltinCount(void)
+{
+    return 3U + _ui_getVisiblePresetBankIds(NULL, 0);
+}
+
+static uint16_t _ui_getBankMenuItemCount(void)
+{
+    return (uint16_t) (_ui_getBankMenuBuiltinCount() + _ui_getBankCount());
+}
+
+static bool _ui_getPresetBankIdForMenuSelection(uint16_t selection, uint16_t *bank_id)
+{
+    uint16_t visible_bank_ids[4] = {0};
+    const uint8_t count = _ui_getVisiblePresetBankIds(visible_bank_ids,
+                                                      ARRAY_SIZE(visible_bank_ids));
+
+    if((selection < 2U) || (selection >= (uint16_t) (2U + count)))
+        return false;
+
+    if(bank_id != NULL)
+        *bank_id = visible_bank_ids[selection - 2U];
+
+    return true;
+}
+
+static bool _ui_isPresetBankSelected(uint16_t selection)
+{
+    return _ui_getPresetBankIdForMenuSelection(selection, NULL);
+}
+
+static bool _ui_isPresetBankActive(void)
+{
+    return state.bank_enabled && state.bank_is_virtual && presetChannelsIsPresetBank(state.bank);
+}
+
+static uint16_t _ui_getUserBankMenuSelection(uint16_t bank_index)
+{
+    return (uint16_t) (_ui_getBankMenuBuiltinCount() + bank_index);
+}
+
+static bool _ui_bankSelectionIsAddNew(uint16_t selection)
+{
+    return selection == (_ui_getBankMenuBuiltinCount() - 1U);
+}
+
+static int16_t _ui_getUserBankIndexFromSelection(uint16_t selection)
+{
+    const uint16_t builtin_count = _ui_getBankMenuBuiltinCount();
+
+    if(selection < builtin_count)
+        return -1;
+
+    return (int16_t) (selection - builtin_count);
+}
+
+static int _ui_openVirtualBank(uint16_t bank_id, bool *sync_rtx)
+{
+    state.bank_enabled = true;
+    state.bank_is_virtual = true;
+    state.bank = bank_id;
+
+    if(_ui_fsm_loadChannel(0, sync_rtx) == -1)
     {
-        // hwInfo_t frequencies are in MHz
-        if(freq >= (hwinfo->vhf_minFreq * 1000000) &&
-           freq <= (hwinfo->vhf_maxFreq * 1000000))
-        valid = true;
+        state.bank_enabled = false;
+        state.bank_is_virtual = false;
+        state.bank = 0;
+        return -1;
     }
-    if(hwinfo->uhf_band)
-    {
-        // hwInfo_t frequencies are in MHz
-        if(freq >= (hwinfo->uhf_minFreq * 1000000) &&
-           freq <= (hwinfo->uhf_maxFreq * 1000000))
-        valid = true;
-    }
-    return valid;
+
+    if(ui_state.last_main_state == MAIN_VFO)
+        state.vfo_channel = state.channel;
+
+    state.ui_screen = MAIN_MEM;
+    return 0;
 }
 
 static bool _ui_channel_valid(channel_t* channel)
@@ -778,9 +861,6 @@ static bool _ui_channel_valid(channel_t* channel)
 return _ui_freq_check_limits(channel->rx_frequency) &&
        _ui_freq_check_limits(channel->tx_frequency);
 }
-
-static int16_t _ui_findZoneForChannel(const uint16_t channel_index);
-static channel_t *_ui_getMemoryEditChannel(void);
 
 static bool _ui_isVirtualBankActive(void)
 {
@@ -798,6 +878,12 @@ static int _ui_getBankChannelCount(uint16_t bank_index, uint16_t *count)
         return 0;
     }
 
+    if(_ui_isVirtualBankActive() && presetChannelsIsPresetBank(bank_index))
+    {
+        *count = presetChannelsGetCount(bank_index);
+        return (*count > 0U) ? 0 : -1;
+    }
+
     bankHdr_t bank = {0};
     if(cps_readBankHeader(&bank, bank_index) == -1)
         return -1;
@@ -810,6 +896,9 @@ static int32_t _ui_getBankChannelIndex(uint16_t bank_index, uint16_t channel_ind
 {
     if(_ui_isVirtualBankActive() && (bank_index == REPEATER_NEAREST_BANK))
         return repeater_getNearestChannelIndex(&state.gps_data, channel_index);
+
+    if(_ui_isVirtualBankActive() && presetChannelsIsPresetBank(bank_index))
+        return channel_index;
 
     return cps_readBankData(bank_index, channel_index);
 }
@@ -1121,6 +1210,8 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
 {
     channel_t channel;
     int32_t selected_channel = channel_index;
+    int result = -1;
+
     // If a bank is active, get index from current bank
     if(state.bank_enabled)
     {
@@ -1130,10 +1221,20 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
             return -1;
         if((channel_index < 0) || (channel_index >= bank_count))
             return -1;
-        channel_index = _ui_getBankChannelIndex(state.bank, channel_index);
+
+        if(_ui_isVirtualBankActive() && presetChannelsIsPresetBank(state.bank))
+        {
+            result = presetChannelsGetChannel(state.bank, (uint16_t) channel_index, &channel);
+        }
+        else
+        {
+            channel_index = _ui_getBankChannelIndex(state.bank, channel_index);
+        }
     }
 
-    int result = cps_readChannel(&channel, channel_index + 1);
+    if(result == -1)
+        result = cps_readChannel(&channel, channel_index + 1);
+
     // Read successful and channel is valid
     if((result != -1) && _ui_channel_valid(&channel))
     {
@@ -1398,7 +1499,7 @@ static void _ui_fsm_confirmChannelFrequencyInput(bool *sync_rtx)
 
     (void) sync_rtx;
 
-    if(_ui_freq_check_limits(new_freq))
+    if(_ui_custom_freq_allowed(new_freq))
     {
         if(ui_state.input_set == SET_RX)
             channel->rx_frequency = new_freq;
@@ -1495,7 +1596,7 @@ static void _ui_fsm_confirmVFOInput(bool *sync_rtx)
     {
         if(single_field_input)
         {
-            if(_ui_freq_check_limits(ui_state.new_rx_frequency))
+            if(_ui_custom_freq_allowed(ui_state.new_rx_frequency))
             {
                 state.channel.rx_frequency = ui_state.new_rx_frequency;
                 *sync_rtx = true;
@@ -1529,8 +1630,8 @@ static void _ui_fsm_confirmVFOInput(bool *sync_rtx)
             ui_state.new_tx_frequency = ui_state.new_rx_frequency;
         }
         // Apply new frequencies if they are valid
-        if(_ui_freq_check_limits(ui_state.new_rx_frequency) &&
-           _ui_freq_check_limits(ui_state.new_tx_frequency))
+        if(_ui_custom_freq_allowed(ui_state.new_rx_frequency) &&
+           _ui_custom_freq_allowed(ui_state.new_tx_frequency))
         {
             state.channel.rx_frequency = ui_state.new_rx_frequency;
             state.channel.tx_frequency = ui_state.new_tx_frequency;
@@ -1583,7 +1684,7 @@ static void _ui_fsm_insertVFONumber(kbd_msg_t msg, bool *sync_rtx)
         {
             if(single_field_input)
             {
-                if(_ui_freq_check_limits(ui_state.new_rx_frequency))
+                if(_ui_custom_freq_allowed(ui_state.new_rx_frequency))
                 {
                     state.channel.rx_frequency = ui_state.new_rx_frequency;
                     *sync_rtx = true;
@@ -1623,7 +1724,7 @@ static void _ui_fsm_insertVFONumber(kbd_msg_t msg, bool *sync_rtx)
         {
             if(single_field_input)
             {
-                if(_ui_freq_check_limits(ui_state.new_tx_frequency))
+                if(_ui_custom_freq_allowed(ui_state.new_tx_frequency))
                 {
                     state.channel.tx_frequency = ui_state.new_tx_frequency;
                     *sync_rtx = true;
@@ -1634,8 +1735,8 @@ static void _ui_fsm_insertVFONumber(kbd_msg_t msg, bool *sync_rtx)
                     vp_announceError(vpqInit);
                 }
             }
-            else if(_ui_freq_check_limits(ui_state.new_rx_frequency) &&
-                    _ui_freq_check_limits(ui_state.new_tx_frequency))
+            else if(_ui_custom_freq_allowed(ui_state.new_rx_frequency) &&
+                    _ui_custom_freq_allowed(ui_state.new_tx_frequency))
             {
                 state.channel.rx_frequency = ui_state.new_rx_frequency;
                 state.channel.tx_frequency = ui_state.new_tx_frequency;
@@ -2167,9 +2268,12 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
             }
             else if(msg.long_press && (state.ui_screen == MAIN_MEM))
             {
-                _ui_clearTemporaryFmActions(sync_rtx);
-                _ui_beginMemoryEditSession(state.channel_index, &state.channel, false, false);
-                state.ui_screen = MENU_CHANNEL_EDIT;
+                if(!_ui_isPresetBankActive())
+                {
+                    _ui_clearTemporaryFmActions(sync_rtx);
+                    _ui_beginMemoryEditSession(state.channel_index, &state.channel, false, false);
+                    state.ui_screen = MENU_CHANNEL_EDIT;
+                }
                 macro_menu = false;
                 macro_latched = false;
             }
@@ -2830,8 +2934,8 @@ void ui_updateFSM(bool *sync_rtx)
                     else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
                     {
                         // Increment TX and RX frequency of 12.5KHz
-                        if(_ui_freq_check_limits(state.channel.rx_frequency + freq_steps[state.step_index]) &&
-                           _ui_freq_check_limits(state.channel.tx_frequency + freq_steps[state.step_index]))
+                        if(_ui_custom_freq_allowed(state.channel.rx_frequency + freq_steps[state.step_index]) &&
+                           _ui_custom_freq_allowed(state.channel.tx_frequency + freq_steps[state.step_index]))
                         {
                             state.channel.rx_frequency += freq_steps[state.step_index];
                             state.channel.tx_frequency += freq_steps[state.step_index];
@@ -2844,8 +2948,8 @@ void ui_updateFSM(bool *sync_rtx)
                     else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
                     {
                         // Decrement TX and RX frequency of 12.5KHz
-                        if(_ui_freq_check_limits(state.channel.rx_frequency - freq_steps[state.step_index]) &&
-                           _ui_freq_check_limits(state.channel.tx_frequency - freq_steps[state.step_index]))
+                        if(_ui_custom_freq_allowed(state.channel.rx_frequency - freq_steps[state.step_index]) &&
+                           _ui_custom_freq_allowed(state.channel.tx_frequency - freq_steps[state.step_index]))
                         {
                             state.channel.rx_frequency -= freq_steps[state.step_index];
                             state.channel.tx_frequency -= freq_steps[state.step_index];
@@ -2989,8 +3093,11 @@ void ui_updateFSM(bool *sync_rtx)
                     {
                         if(msg.long_press)
                         {
-                            _ui_beginMemoryEditSession(state.channel_index, &state.channel, false, false);
-                            state.ui_screen = MENU_CHANNEL_EDIT;
+                            if(!_ui_isPresetBankActive())
+                            {
+                                _ui_beginMemoryEditSession(state.channel_index, &state.channel, false, false);
+                                state.ui_screen = MENU_CHANNEL_EDIT;
+                            }
                         }
                         else
                         {
@@ -3072,7 +3179,7 @@ void ui_updateFSM(bool *sync_rtx)
                         case CE_RX_FREQ:
                             if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
                             {
-                                if(_ui_freq_check_limits(state.channel.rx_frequency + freq_steps[state.step_index]))
+                                if(_ui_custom_freq_allowed(state.channel.rx_frequency + freq_steps[state.step_index]))
                                 {
                                     state.channel.rx_frequency += freq_steps[state.step_index];
                                     *sync_rtx = true;
@@ -3080,7 +3187,7 @@ void ui_updateFSM(bool *sync_rtx)
                             }
                             else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
                             {
-                                if(_ui_freq_check_limits(state.channel.rx_frequency - freq_steps[state.step_index]))
+                                if(_ui_custom_freq_allowed(state.channel.rx_frequency - freq_steps[state.step_index]))
                                 {
                                     state.channel.rx_frequency -= freq_steps[state.step_index];
                                     *sync_rtx = true;
@@ -3094,7 +3201,7 @@ void ui_updateFSM(bool *sync_rtx)
                         case CE_TX_FREQ:
                             if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
                             {
-                                if(_ui_freq_check_limits(state.channel.tx_frequency + freq_steps[state.step_index]))
+                                if(_ui_custom_freq_allowed(state.channel.tx_frequency + freq_steps[state.step_index]))
                                 {
                                     state.channel.tx_frequency += freq_steps[state.step_index];
                                     *sync_rtx = true;
@@ -3102,7 +3209,7 @@ void ui_updateFSM(bool *sync_rtx)
                             }
                             else if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
                             {
-                                if(_ui_freq_check_limits(state.channel.tx_frequency - freq_steps[state.step_index]))
+                                if(_ui_custom_freq_allowed(state.channel.tx_frequency - freq_steps[state.step_index]))
                                 {
                                     state.channel.tx_frequency -= freq_steps[state.step_index];
                                     *sync_rtx = true;
@@ -3479,6 +3586,10 @@ void ui_updateFSM(bool *sync_rtx)
                             _ui_menuUp(bank_action_num);
                         }
                     }
+                    else if(state.ui_screen == MENU_BANK)
+                    {
+                        _ui_menuUp(_ui_getBankMenuItemCount());
+                    }
                     else
                         _ui_menuUp(1);
                 }
@@ -3486,20 +3597,7 @@ void ui_updateFSM(bool *sync_rtx)
                 {
                     if(state.ui_screen == MENU_BANK)
                     {
-                        bankHdr_t bank;
-                        if(ui_state.menu_selected == 0)
-                            ui_state.menu_selected += 1;
-                        else if(ui_state.menu_selected == 1)
-                        {
-                            ui_state.menu_selected += 1;
-                        }
-                        else if(ui_state.menu_selected == 2)
-                        {
-                            if(cps_readBankHeader(&bank, 0) != -1)
-                                ui_state.menu_selected += 1;
-                        }
-                        else if(cps_readBankHeader(&bank, ui_state.menu_selected - 2) != -1)
-                            ui_state.menu_selected += 1;
+                        _ui_menuDown(_ui_getBankMenuItemCount());
                     }
                     else if(state.ui_screen == MENU_CHANNEL)
                     {
@@ -3546,31 +3644,30 @@ void ui_updateFSM(bool *sync_rtx)
                         }
                         else if(ui_state.menu_selected == 1)
                         {
-                            state.bank_enabled = true;
-                            state.bank_is_virtual = true;
-                            state.bank = REPEATER_NEAREST_BANK;
-                            if(_ui_fsm_loadChannel(0, sync_rtx) != -1)
+                            if(_ui_openVirtualBank(REPEATER_NEAREST_BANK, sync_rtx) == 0)
                             {
-                                if(ui_state.last_main_state == MAIN_VFO)
-                                    state.vfo_channel = state.channel;
-                                state.ui_screen = MAIN_MEM;
                             }
                             else
                             {
-                                state.bank_enabled = false;
-                                state.bank_is_virtual = false;
-                                state.bank = 0;
                                 vp_announceError(vpqInit);
                             }
                         }
-                        else if(ui_state.menu_selected == 2)
+                        else if(_ui_isPresetBankSelected(ui_state.menu_selected))
+                        {
+                            uint16_t preset_bank = 0;
+
+                            _ui_getPresetBankIdForMenuSelection(ui_state.menu_selected, &preset_bank);
+                            if(_ui_openVirtualBank(preset_bank, sync_rtx) != 0)
+                                vp_announceError(vpqInit);
+                        }
+                        else if(_ui_bankSelectionIsAddNew(ui_state.menu_selected))
                         {
                             _ui_prepareBankRename(-1);
                             state.ui_screen = MENU_BANK_RENAME;
                         }
                         else
                         {
-                            ui_state.bank_edit_index = ui_state.menu_selected - 3;
+                            ui_state.bank_edit_index = _ui_getUserBankIndexFromSelection(ui_state.menu_selected);
                             ui_state.menu_selected = 0;
                             state.ui_screen = MENU_BANK_ACTION;
                         }
@@ -3703,7 +3800,7 @@ void ui_updateFSM(bool *sync_rtx)
                     }
                     else if(state.ui_screen == MENU_BANK_ACTION)
                     {
-                        ui_state.menu_selected = ui_state.bank_edit_index + 2;
+                        ui_state.menu_selected = _ui_getUserBankMenuSelection(ui_state.bank_edit_index);
                         state.ui_screen = MENU_BANK;
                     }
                     else
@@ -3954,6 +4051,11 @@ void ui_updateFSM(bool *sync_rtx)
                     _ui_menuUp(info_num);
                 else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
                     _ui_menuDown(info_num);
+                else if((msg.keys & KEY_ENTER) && (ui_state.menu_selected == 0))
+                {
+                    state.ui_screen = MENU_BATTERY_INFO;
+                    ui_state.battery_page_scroll = 0;
+                }
                 else if((msg.keys & KEY_ENTER) && (ui_state.menu_selected == (info_num - 1)))
                 {
                     size_t lineCount = devConsole_getDisplayRowCount(DEV_CONSOLE_WRAP_COLS);
@@ -3970,6 +4072,26 @@ void ui_updateFSM(bool *sync_rtx)
                 else if(msg.keys & KEY_ESC)
                     _ui_menuBack(MENU_TOP);
                 break;
+            case MENU_BATTERY_INFO:
+            {
+                const uint8_t totalLines = 5;
+                uint8_t visibleLines = (CONFIG_SCREEN_HEIGHT >= 100) ? 5 : 3;
+                uint8_t maxScroll = (totalLines > visibleLines) ? (totalLines - visibleLines) : 0;
+
+                if(msg.keys & KEY_UP || msg.keys & KNOB_LEFT)
+                {
+                    if(ui_state.battery_page_scroll > 0)
+                        ui_state.battery_page_scroll -= 1;
+                }
+                else if(msg.keys & KEY_DOWN || msg.keys & KNOB_RIGHT)
+                {
+                    if(ui_state.battery_page_scroll < maxScroll)
+                        ui_state.battery_page_scroll += 1;
+                }
+                else if(msg.keys & KEY_ESC)
+                    _ui_menuBack(MENU_INFO);
+                break;
+            }
             case MENU_DEV_CONSOLE:
             {
                 size_t lineCount = devConsole_getDisplayRowCount(DEV_CONSOLE_WRAP_COLS);
@@ -4205,6 +4327,14 @@ void ui_updateFSM(bool *sync_rtx)
                 {
                     switch(ui_state.menu_selected)
                     {
+                        case R_BAND_PLAN:
+                            if(msg.keys & KEY_UP || msg.keys & KEY_RIGHT || msg.keys & KNOB_RIGHT ||
+                               msg.keys & KEY_DOWN || msg.keys & KEY_LEFT || msg.keys & KNOB_LEFT)
+                            {
+                                state.settings.bandplan++;
+                                state.settings.bandplan %= BANDPLAN_MAX;
+                            }
+                            break;
                         case R_SHIFT:
                             // Handle offset frequency input
 #if defined(CONFIG_UI_NO_KEYBOARD)
@@ -4217,10 +4347,19 @@ void ui_updateFSM(bool *sync_rtx)
                             {
 #endif
                                 // Apply new offset
-                                state.channel.tx_frequency = state.channel.rx_frequency + ui_state.new_shift;
-                                vp_queueStringTableEntry(&currentLanguage->repeaterShift);
-                                vp_queueFrequency(ui_state.new_shift);
-                                ui_state.edit_mode = false;
+                                freq_t new_tx = state.channel.rx_frequency + ui_state.new_shift;
+
+                                if(_ui_custom_freq_allowed(new_tx))
+                                {
+                                    state.channel.tx_frequency = new_tx;
+                                    vp_queueStringTableEntry(&currentLanguage->repeaterShift);
+                                    vp_queueFrequency(ui_state.new_shift);
+                                    ui_state.edit_mode = false;
+                                }
+                                else
+                                {
+                                    vp_announceError(vpqInit);
+                                }
                             }
                             else
                             if(msg.keys & KEY_ESC)
@@ -5058,6 +5197,9 @@ bool ui_updateGUI()
         // Info menu screen
         case MENU_INFO:
             _ui_drawMenuInfo(&ui_state);
+            break;
+        case MENU_BATTERY_INFO:
+            _ui_drawMenuBatteryInfo(&ui_state);
             break;
         case MENU_DEV_CONSOLE:
             _ui_drawMenuDevConsole(&ui_state);

@@ -37,12 +37,32 @@ void _ui_drawMainTop()
                   color_white, state.settings.callsign);
 }
 
+static const char *_ui_getM17EncryptionLabel()
+{
+    uint8_t enc = last_state.settings.m17_default_encryption;
+
+    if((last_state.tuner_mode != VFO) && (last_state.channel.mode == OPMODE_M17)
+       && (last_state.channel.m17.encr != PLAIN))
+    {
+        enc = last_state.channel.m17.encr;
+    }
+
+    if(enc == AES)
+        return "AES";
+
+    if(enc == SCRAMBLER)
+        return "SCR";
+
+    return NULL;
+}
+
 static void _ui_drawModeInfo(ui_state_t* ui_state)
 {
     switch(last_state.channel.mode)
     {
         case OPMODE_M17:
         {
+            const char *encLabel = _ui_getM17EncryptionLabel();
             rtxStatus_t rtxStatus = rtx_getCurrentStatus();
 
             if(rtxStatus.lsfOk)
@@ -55,6 +75,10 @@ static void _ui_drawModeInfo(ui_state_t* ui_state)
                                color_white, SYMBOL_CALL_MADE);
                 gfx_print(layout.line1_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                           color_white, "%s", rtxStatus.M17_src);
+
+                if(encLabel != NULL)
+                    gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_RIGHT,
+                              yellow_fab413, "%s", encLabel);
 
                 if(rtxStatus.M17_link[0] != '\0')
                 {
@@ -128,6 +152,10 @@ static void _ui_drawModeInfo(ui_state_t* ui_state)
                 // Print M17 Destination ID on line 2
                 gfx_print(layout.line3_pos, layout.line3_font, TEXT_ALIGN_CENTER,
                           color_white, "%s", dst);
+
+                if(encLabel != NULL)
+                    gfx_print(layout.line3_pos, layout.line3_font, TEXT_ALIGN_RIGHT,
+                              yellow_fab413, "%s", encLabel);
                 if (ui_state->edit_mode)
                 {
                     // Print Button Info

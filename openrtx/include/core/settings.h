@@ -8,6 +8,7 @@
 #define SETTINGS_H
 
 #include "hwconfig.h"
+#include "core/bandplan.h"
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -52,6 +53,7 @@ typedef struct
             powerProfile    : 2,  // TX power range / sweep profile
             usbLogExport    : 1;  // Mirror developer logs to USB CDC
     uint8_t theme;                // UI color theme
+    uint8_t bandplan;             // Amateur band plan region
     bool    m17_can_rx;           // Check M17 CAN on RX
     char    m17_dest[10];         // M17 destination
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage
@@ -91,6 +93,7 @@ static const settings_t default_settings =
     0,
     0,
     0,
+    BANDPLAN_CANADA,
     false,
     "",
     false,
