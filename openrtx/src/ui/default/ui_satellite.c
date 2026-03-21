@@ -104,7 +104,7 @@ static bool _ui_satReadyForObserver(const satellite_prediction_t *prediction,
     if((prediction == NULL) || !prediction->observer_ready)
     {
         gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
-                  color_white, "Need 3D GPS fix");
+                  color_white, "Need GPS fix");
         gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
                   color_white, "Need open sky");
         _ui_satDrawFooter("L/R tune  # auto", "0 view");
@@ -215,7 +215,7 @@ static void _ui_drawSatelliteInfoPage(ui_state_t *ui_state,
     _ui_satFormatFrequency(rx_buf, sizeof(rx_buf), last_state.channel.rx_frequency);
     _ui_satFormatFrequency(tx_buf, sizeof(tx_buf), last_state.channel.tx_frequency);
     snprintf(buf, sizeof(buf), "RX %s", rx_buf);
-    gfx_print(layout.line3_large_pos, layout.line3_large_font, TEXT_ALIGN_CENTER,
+    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
               color_white, "%s", buf);
     gfx_print(layout.line4_pos, layout.line4_font, TEXT_ALIGN_LEFT,
               color_white, "TX %s", tx_buf);

@@ -37,6 +37,19 @@ static bool satelliteFindNextEvent(const satellite_t *satellite,
 static const satellite_t satellites[] =
 {
     {
+        "AO-91",
+        145960000U,
+        435250000U,
+        26,
+        80.58148605,
+        97.4831,
+        309.6288,
+        0.0153435,
+        270.8313,
+        87.5340,
+        15.11111116,
+    },
+    {
         "SO-50",
         436795000U,
         145850000U,
@@ -61,6 +74,32 @@ static const satellite_t satellites[] =
         8.7623,
         351.3704,
         14.30916387,
+    },
+    {
+        "CAS-3H",
+        437200000U,
+        144350000U,
+        26,
+        80.60094370,
+        97.4785,
+        114.2410,
+        0.0006912,
+        195.8764,
+        164.2270,
+        15.48449986,
+    },
+    {
+        "IO-86",
+        435880000U,
+        145880000U,
+        26,
+        51.50840545,
+        6.0006,
+        282.0515,
+        0.0012733,
+        338.8432,
+        194.8877,
+        14.79136711,
     },
     {
         "ISS FM",
@@ -88,6 +127,45 @@ static const satellite_t satellites[] =
         266.9647,
         15.00012295,
     },
+    {
+        "RS95S",
+        436950000U,
+        145920000U,
+        26,
+        80.49200436,
+        97.3985,
+        156.7512,
+        0.0007960,
+        306.1923,
+        53.8578,
+        15.23834312,
+    },
+    {
+        "SO-125",
+        436666000U,
+        145875000U,
+        26,
+        80.51048045,
+        97.3925,
+        341.4183,
+        0.0008973,
+        88.9270,
+        271.3015,
+        15.60341731,
+    },
+    {
+        "AO-123",
+        435400000U,
+        145850000U,
+        26,
+        80.61714332,
+        97.3128,
+        310.0935,
+        0.0012394,
+        261.8461,
+        98.1377,
+        15.34286716,
+    },
 };
 
 static bool satelliteTimeIsValid(const datetime_t *utc_time)
@@ -109,7 +187,7 @@ static bool satelliteObserverIsReady(const gps_t *gps)
 
     return (gps->fix_quality != FIX_QUALITY_NO_FIX)
         && (gps->fix_quality != FIX_QUALITY_ESTIMATED)
-        && (gps->fix_type == FIX_TYPE_3D);
+        && (gps->fix_type != FIX_TYPE_NOT_AVAIL);
 }
 
 static double satelliteWrapRadians(double value)
