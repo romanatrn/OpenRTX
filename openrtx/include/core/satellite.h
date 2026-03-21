@@ -43,12 +43,31 @@ typedef struct
 }
 satellite_prediction_t;
 
+typedef struct
+{
+    bool valid;
+    int32_t offset_seconds;
+    int16_t azimuth_deg;
+    int16_t elevation_deg;
+    int32_t sub_latitude;
+    int32_t sub_longitude;
+}
+satellite_track_point_t;
+
 size_t satelliteGetCount(void);
 const satellite_t *satelliteGetByIndex(size_t index);
 void satelliteConfigureChannel(channel_t *channel, size_t index);
 bool satelliteComputePrediction(size_t index, const gps_t *gps,
-                                const datetime_t *utc_time,
-                                satellite_prediction_t *prediction,
-                                bool include_next_event);
+                                 const datetime_t *utc_time,
+                                 satellite_prediction_t *prediction,
+                                 bool include_next_event);
+bool satelliteComputeSubPoint(size_t index, const datetime_t *utc_time,
+                              int32_t *latitude_e6, int32_t *longitude_e6);
+size_t satelliteSampleTrack(size_t index, const gps_t *gps,
+                            const datetime_t *utc_time,
+                            int32_t start_offset_seconds,
+                            int32_t step_seconds,
+                            size_t max_points,
+                            satellite_track_point_t *points);
 
 #endif

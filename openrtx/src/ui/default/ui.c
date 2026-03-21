@@ -496,6 +496,7 @@ static void _ui_updateSatellitePrediction(bool *sync_rtx, bool force_event_refre
 static void _ui_openSatelliteScreen(uint8_t index, bool *sync_rtx)
 {
     ui_state.satellite_selected = index;
+    ui_state.satellite_view = 0;
     ui_state.satellite_auto_doppler = true;
     ui_state.satellite_manual_bias_hz = 0;
     ui_state.satellite_last_update_tick = 0;
@@ -4057,6 +4058,11 @@ void ui_updateFSM(bool *sync_rtx)
                 break;
 
             case MENU_SATELLITE_INFO:
+                if(msg.keys & KEY_0)
+                {
+                    ui_state.satellite_view = (ui_state.satellite_view + 1U) % 4U;
+                }
+                else 
                 if((msg.keys & KEY_UP) && (ui_state.satellite_selected > 0U))
                 {
                     ui_state.menu_selected = ui_state.satellite_selected - 1U;

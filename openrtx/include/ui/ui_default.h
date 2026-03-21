@@ -347,6 +347,7 @@ typedef struct ui_state_t
     int32_t gps_map_center_lon;
     uint8_t battery_page_scroll;
     uint8_t satellite_selected;
+    uint8_t satellite_view;
     bool satellite_auto_doppler;
     int32_t satellite_manual_bias_hz;
     long long satellite_last_update_tick;

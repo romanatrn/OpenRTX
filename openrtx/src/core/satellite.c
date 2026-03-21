@@ -22,6 +22,18 @@ typedef struct
 }
 sat_vec3_t;
 
+static double satelliteElevationAtTime(const satellite_t *satellite,
+                                       const gps_t *gps,
+                                       const datetime_t *utc_time,
+                                       sat_vec3_t *range_ecef,
+                                       double *range_km);
+static bool satelliteFindNextEvent(const satellite_t *satellite,
+                                   const gps_t *gps,
+                                   const datetime_t *utc_time,
+                                   bool pass_active,
+                                   bool *event_is_aos,
+                                   int32_t *event_seconds);
+
 static const satellite_t satellites[] =
 {
     {
@@ -236,6 +248,105 @@ static sat_vec3_t satelliteObserverEcef(const gps_t *gps)
     return observer;
 }
 
+static void satelliteSubPointFromEcef(sat_vec3_t position_ecef,
+                                      int32_t *latitude_e6,
+                                      int32_t *longitude_e6)
+{
+    const double radius = sqrt((position_ecef.x * position_ecef.x)
+                             + (position_ecef.y * position_ecef.y)
+                             + (position_ecef.z * position_ecef.z));
+    double longitude = atan2(position_ecef.y, position_ecef.x) * SAT_RAD2DEG;
+    const double latitude = asin(position_ecef.z / radius) * SAT_RAD2DEG;
+
+    if(longitude > 180.0)
+        longitude -= 360.0;
+    else if(longitude < -180.0)
+        longitude += 360.0;
+
+    if(latitude_e6 != NULL)
+        *latitude_e6 = (int32_t) lround(latitude * 1000000.0);
+    if(longitude_e6 != NULL)
+        *longitude_e6 = (int32_t) lround(longitude * 1000000.0);
+}
+
+static bool satelliteComputePredictionAtTime(const satellite_t *satellite,
+                                             const gps_t *gps,
+                                             const datetime_t *utc_time,
+                                             satellite_prediction_t *prediction,
+                                             bool include_next_event,
+                                             int32_t *sub_latitude,
+                                             int32_t *sub_longitude)
+{
+    sat_vec3_t range_now = {0.0, 0.0, 0.0};
+    const sat_vec3_t position_eci = satelliteEciPosition(satellite, utc_time);
+    const sat_vec3_t position_ecef = satelliteRotateZ(position_eci,
+                                                      -satelliteGreenwichSidereal(utc_time));
+    double range_km = 0.0;
+    datetime_t later;
+    double later_range_km = 0.0;
+    double elevation_deg = 0.0;
+
+    if(prediction == NULL)
+        return false;
+
+    memset(prediction, 0, sizeof(*prediction));
+    prediction->observer_ready = satelliteObserverIsReady(gps);
+    prediction->time_ready = satelliteTimeIsValid(utc_time);
+
+    if(!prediction->time_ready)
+        return false;
+
+    satelliteSubPointFromEcef(position_ecef, sub_latitude, sub_longitude);
+
+    if(!prediction->observer_ready)
+        return false;
+
+    elevation_deg = satelliteElevationAtTime(satellite, gps, utc_time, &range_now, &range_km);
+    later = *utc_time;
+    later.second += 1;
+    realignTimeInfo(&later);
+    satelliteElevationAtTime(satellite, gps, &later, NULL, &later_range_km);
+
+    const double lat = ((double) gps->latitude / 1000000.0) * SAT_DEG2RAD;
+    const double lon = ((double) gps->longitude / 1000000.0) * SAT_DEG2RAD;
+    const double sin_lat = sin(lat);
+    const double cos_lat = cos(lat);
+    const double sin_lon = sin(lon);
+    const double cos_lon = cos(lon);
+    const double east = (-sin_lon * range_now.x) + (cos_lon * range_now.y);
+    const double north = (-sin_lat * cos_lon * range_now.x)
+                       - (sin_lat * sin_lon * range_now.y)
+                       + (cos_lat * range_now.z);
+    double azimuth_deg = atan2(east, north) * SAT_RAD2DEG;
+    const double range_rate_m_s = (later_range_km - range_km) * 1000.0;
+    const double rx_shift = -range_rate_m_s * ((double) satellite->rx_base_hz) / SAT_LIGHT_SPEED_M_S;
+    const double tx_shift = range_rate_m_s * ((double) satellite->tx_base_hz) / SAT_LIGHT_SPEED_M_S;
+
+    if(azimuth_deg < 0.0)
+        azimuth_deg += 360.0;
+
+    prediction->geometry_valid = true;
+    prediction->pass_active = elevation_deg >= 0.0;
+    prediction->azimuth_deg = (int16_t) lround(azimuth_deg);
+    prediction->elevation_deg = (int16_t) lround(elevation_deg);
+    prediction->range_km = (uint16_t) lround(range_km);
+    prediction->range_rate_m_s = (int16_t) lround(range_rate_m_s);
+    prediction->rx_doppler_hz = (int32_t) lround(rx_shift / 1000.0) * 1000;
+    prediction->tx_doppler_hz = (int32_t) lround(tx_shift / 1000.0) * 1000;
+
+    if(include_next_event)
+    {
+        prediction->next_event_valid = satelliteFindNextEvent(satellite,
+                                                              gps,
+                                                              utc_time,
+                                                              prediction->pass_active,
+                                                              &prediction->next_event_is_aos,
+                                                              &prediction->next_event_seconds);
+    }
+
+    return true;
+}
+
 static double satelliteElevationAtTime(const satellite_t *satellite,
                                        const gps_t *gps,
                                        const datetime_t *utc_time,
@@ -378,66 +489,72 @@ bool satelliteComputePrediction(size_t index, const gps_t *gps,
                                 bool include_next_event)
 {
     const satellite_t *satellite = satelliteGetByIndex(index);
-    sat_vec3_t range_now = {0.0, 0.0, 0.0};
-    double range_km = 0.0;
-    datetime_t later;
-    double later_range_km = 0.0;
-    double elevation_deg = 0.0;
-    double later_el = 0.0;
 
-    if(prediction == NULL)
+    if((satellite == NULL) || (prediction == NULL))
         return false;
 
-    memset(prediction, 0, sizeof(*prediction));
-    prediction->observer_ready = satelliteObserverIsReady(gps);
-    prediction->time_ready = satelliteTimeIsValid(utc_time);
+    return satelliteComputePredictionAtTime(satellite, gps, utc_time,
+                                            prediction, include_next_event,
+                                            NULL, NULL);
+}
 
-    if((satellite == NULL) || !prediction->observer_ready || !prediction->time_ready)
+bool satelliteComputeSubPoint(size_t index, const datetime_t *utc_time,
+                              int32_t *latitude_e6, int32_t *longitude_e6)
+{
+    const satellite_t *satellite = satelliteGetByIndex(index);
+    sat_vec3_t position_eci;
+    sat_vec3_t position_ecef;
+
+    if((satellite == NULL) || !satelliteTimeIsValid(utc_time))
         return false;
 
-    elevation_deg = satelliteElevationAtTime(satellite, gps, utc_time, &range_now, &range_km);
-    later = *utc_time;
-    later.second += 1;
-    realignTimeInfo(&later);
-    later_el = satelliteElevationAtTime(satellite, gps, &later, NULL, &later_range_km);
+    position_eci = satelliteEciPosition(satellite, utc_time);
+    position_ecef = satelliteRotateZ(position_eci,
+                                     -satelliteGreenwichSidereal(utc_time));
 
-    const double lat = ((double) gps->latitude / 1000000.0) * SAT_DEG2RAD;
-    const double lon = ((double) gps->longitude / 1000000.0) * SAT_DEG2RAD;
-    const double sin_lat = sin(lat);
-    const double cos_lat = cos(lat);
-    const double sin_lon = sin(lon);
-    const double cos_lon = cos(lon);
-    const double east = (-sin_lon * range_now.x) + (cos_lon * range_now.y);
-    const double north = (-sin_lat * cos_lon * range_now.x)
-                       - (sin_lat * sin_lon * range_now.y)
-                       + (cos_lat * range_now.z);
-    double azimuth_deg = atan2(east, north) * SAT_RAD2DEG;
-    const double range_rate_m_s = (later_range_km - range_km) * 1000.0;
-    const double rx_shift = -range_rate_m_s * ((double) satellite->rx_base_hz) / SAT_LIGHT_SPEED_M_S;
-    const double tx_shift = range_rate_m_s * ((double) satellite->tx_base_hz) / SAT_LIGHT_SPEED_M_S;
+    satelliteSubPointFromEcef(position_ecef, latitude_e6, longitude_e6);
+    return true;
+}
 
-    if(azimuth_deg < 0.0)
-        azimuth_deg += 360.0;
+size_t satelliteSampleTrack(size_t index, const gps_t *gps,
+                            const datetime_t *utc_time,
+                            int32_t start_offset_seconds,
+                            int32_t step_seconds,
+                            size_t max_points,
+                            satellite_track_point_t *points)
+{
+    const satellite_t *satellite = satelliteGetByIndex(index);
+    size_t count = 0;
 
-    prediction->geometry_valid = true;
-    prediction->pass_active = elevation_deg >= 0.0;
-    prediction->azimuth_deg = (int16_t) lround(azimuth_deg);
-    prediction->elevation_deg = (int16_t) lround(elevation_deg);
-    prediction->range_km = (uint16_t) lround(range_km);
-    prediction->range_rate_m_s = (int16_t) lround(range_rate_m_s);
-    prediction->rx_doppler_hz = (int32_t) lround(rx_shift / 1000.0) * 1000;
-    prediction->tx_doppler_hz = (int32_t) lround(tx_shift / 1000.0) * 1000;
+    if((satellite == NULL) || (gps == NULL) || (utc_time == NULL) ||
+       (points == NULL) || (max_points == 0U) || (step_seconds <= 0))
+        return 0U;
 
-    if(include_next_event)
+    for(size_t i = 0; i < max_points; i++)
     {
-        prediction->next_event_valid = satelliteFindNextEvent(satellite,
-                                                              gps,
-                                                              utc_time,
-                                                              prediction->pass_active,
-                                                              &prediction->next_event_is_aos,
-                                                              &prediction->next_event_seconds);
+        datetime_t sample_time = *utc_time;
+        satellite_prediction_t prediction;
+        int32_t sub_latitude = 0;
+        int32_t sub_longitude = 0;
+        const int32_t offset_seconds = start_offset_seconds + (step_seconds * (int32_t) i);
+
+        memset(&points[i], 0, sizeof(points[i]));
+        sample_time.second += offset_seconds;
+        realignTimeInfo(&sample_time);
+
+        if(!satelliteComputePredictionAtTime(satellite, gps, &sample_time,
+                                             &prediction, false,
+                                             &sub_latitude, &sub_longitude))
+            continue;
+
+        points[i].valid = prediction.time_ready;
+        points[i].offset_seconds = offset_seconds;
+        points[i].azimuth_deg = prediction.azimuth_deg;
+        points[i].elevation_deg = prediction.elevation_deg;
+        points[i].sub_latitude = sub_latitude;
+        points[i].sub_longitude = sub_longitude;
+        count++;
     }
 
-    (void) later_el;
-    return true;
+    return count;
 }
