@@ -60,6 +60,21 @@ static bool devConsoleDumpDone = false;
 
 static void devConsoleQueueUsbResponse(const char *fmt, ...);
 
+static void devConsoleCopyString(char *dst, size_t dst_len, const char *src)
+{
+    if((dst == NULL) || (dst_len == 0U))
+        return;
+
+    if(src == NULL)
+    {
+        dst[0] = '\0';
+        return;
+    }
+
+    strncpy(dst, src, dst_len - 1U);
+    dst[dst_len - 1U] = '\0';
+}
+
 static bool devConsoleWritesUnlocked(void)
 {
     return getTick() < devConsoleWriteUnlockUntil;
@@ -682,19 +697,19 @@ static void devConsoleSetSetting(const char *key, const char *value)
         state.settings.usbLogExport = parsed == 1;
     }
     else if(strcmp(key, "callsign") == 0)
-        snprintf(state.settings.callsign, sizeof(state.settings.callsign), "%s", value);
+        devConsoleCopyString(state.settings.callsign, sizeof(state.settings.callsign), value);
     else if(strcmp(key, "m17dest") == 0)
-        snprintf(state.settings.m17_dest, sizeof(state.settings.m17_dest), "%s", value);
+        devConsoleCopyString(state.settings.m17_dest, sizeof(state.settings.m17_dest), value);
     else if(strcmp(key, "metatext") == 0)
-        snprintf(state.settings.M17_meta_text, sizeof(state.settings.M17_meta_text), "%s", value);
+        devConsoleCopyString(state.settings.M17_meta_text, sizeof(state.settings.M17_meta_text), value);
     else if(strcmp(key, "m17key1") == 0)
-        snprintf(state.settings.m17_keys[0], sizeof(state.settings.m17_keys[0]), "%s", value);
+        devConsoleCopyString(state.settings.m17_keys[0], sizeof(state.settings.m17_keys[0]), value);
     else if(strcmp(key, "m17key2") == 0)
-        snprintf(state.settings.m17_keys[1], sizeof(state.settings.m17_keys[1]), "%s", value);
+        devConsoleCopyString(state.settings.m17_keys[1], sizeof(state.settings.m17_keys[1]), value);
     else if(strcmp(key, "m17key3") == 0)
-        snprintf(state.settings.m17_keys[2], sizeof(state.settings.m17_keys[2]), "%s", value);
+        devConsoleCopyString(state.settings.m17_keys[2], sizeof(state.settings.m17_keys[2]), value);
     else if(strcmp(key, "m17key4") == 0)
-        snprintf(state.settings.m17_keys[3], sizeof(state.settings.m17_keys[3]), "%s", value);
+        devConsoleCopyString(state.settings.m17_keys[3], sizeof(state.settings.m17_keys[3]), value);
     else if(strcmp(key, "ppm") == 0 && end != value && parsed >= -32768 && parsed <= 32767)
         state.settings.ppm_offset = parsed;
     else
@@ -1089,7 +1104,7 @@ static void devConsoleHandleCommand(const char *command)
         }
 
         channel = cps_getDefaultChannel();
-        snprintf(channel.name, sizeof(channel.name), "%s", text);
+        devConsoleCopyString(channel.name, sizeof(channel.name), text);
         count = devConsoleCountChannels();
         if(cps_insertChannel(channel, count) == 0)
         {
@@ -1112,7 +1127,7 @@ static void devConsoleHandleCommand(const char *command)
 
         memset(&contact, 0, sizeof(contact));
         contact.mode = OPMODE_M17;
-        snprintf(contact.name, sizeof(contact.name), "%s", text);
+        devConsoleCopyString(contact.name, sizeof(contact.name), text);
         count = devConsoleCountContacts();
         if(cps_insertContact(contact, count + 1) == 0)
             devConsoleQueueUsbResponse("ok created contact %u", (unsigned int) (count + 1));
@@ -1130,7 +1145,7 @@ static void devConsoleHandleCommand(const char *command)
         }
 
         memset(&bank, 0, sizeof(bank));
-        snprintf(bank.name, sizeof(bank.name), "%s", text);
+        devConsoleCopyString(bank.name, sizeof(bank.name), text);
         count = devConsoleCountBanks();
         if(cps_insertBankHeader(bank, count) == 0)
             devConsoleQueueUsbResponse("ok created bank %u", (unsigned int) count);
@@ -1204,7 +1219,7 @@ static void devConsoleHandleCommand(const char *command)
         }
 
         if(strcmp(field, "name") == 0)
-            snprintf(channel.name, sizeof(channel.name), "%s", value);
+            devConsoleCopyString(channel.name, sizeof(channel.name), value);
         else if(strcmp(field, "rx") == 0)
         {
             freq_t freq = strtoul(value, NULL, 10);
@@ -1310,7 +1325,7 @@ static void devConsoleHandleCommand(const char *command)
             return;
         }
         if(strcmp(field, "name") == 0)
-            snprintf(contact.name, sizeof(contact.name), "%s", value);
+            devConsoleCopyString(contact.name, sizeof(contact.name), value);
         else if(strcmp(field, "mode") == 0 && devConsoleParseMode(value, &mode))
             contact.mode = mode;
         else if(strcmp(field, "dmrid") == 0)
@@ -1357,7 +1372,7 @@ static void devConsoleHandleCommand(const char *command)
             return;
         }
         if(strcmp(field, "name") == 0)
-            snprintf(bank.name, sizeof(bank.name), "%s", value);
+            devConsoleCopyString(bank.name, sizeof(bank.name), value);
         else
         {
             devConsoleQueueUsbResponse("ERR bad bank field");

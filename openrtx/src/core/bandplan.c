@@ -17,6 +17,8 @@ const char *bandplanGetName(bandplan_t bandplan)
 {
     switch(bandplan)
     {
+        case BANDPLAN_OFF:
+            return "Off";
         case BANDPLAN_US:
             return "US";
         case BANDPLAN_CANADA:
@@ -53,6 +55,9 @@ bool bandplanIsFrequencyAllowed(const hwInfo_t *hwinfo, bandplan_t bandplan, fre
 {
     if(!bandplanIsFrequencyInHardwareRange(hwinfo, freq))
         return false;
+
+    if(bandplan == BANDPLAN_OFF)
+        return true;
 
     if((freq >= BANDPLAN_2M_LO) && (freq <= BANDPLAN_2M_HI))
         return true;

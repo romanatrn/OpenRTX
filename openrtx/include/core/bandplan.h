@@ -10,6 +10,7 @@ typedef enum
 {
     BANDPLAN_CANADA = 0,
     BANDPLAN_US,
+    BANDPLAN_OFF,
     BANDPLAN_MAX
 }
 bandplan_t;

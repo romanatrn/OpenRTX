@@ -770,7 +770,7 @@ int _ui_getChannelMenuName(char *buf, uint8_t max_len, uint8_t index)
 
 int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
 {
-    uint16_t visible_bank_ids[4] = {0};
+    uint16_t visible_bank_ids[PRESET_BANK_MAX_VISIBLE] = {0};
     const uint8_t preset_count = presetChannelsGetVisibleBankIds((bandplan_t) last_state.settings.bandplan,
                                                                  visible_bank_ids,
                                                                  ARRAY_SIZE(visible_bank_ids));
@@ -787,15 +787,15 @@ int _ui_getBankMenuName(char *buf, uint8_t max_len, uint8_t index)
         return 0;
     }
 
-    if((index >= 2) && (index < (uint8_t) (2 + preset_count)))
+    if(index == 2)
     {
-        sniprintf(buf, max_len, "%s", presetChannelsGetBankName(visible_bank_ids[index - 2]));
+        sniprintf(buf, max_len, "Add New");
         return 0;
     }
 
-    if(index == (uint8_t) (2 + preset_count))
+    if((index >= 3) && (index < (uint8_t) (3 + preset_count)))
     {
-        sniprintf(buf, max_len, "Add New");
+        sniprintf(buf, max_len, "%s", presetChannelsGetBankName(visible_bank_ids[index - 3]));
         return 0;
     }
 

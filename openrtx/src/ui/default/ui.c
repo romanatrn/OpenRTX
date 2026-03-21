@@ -792,15 +792,15 @@ static uint16_t _ui_getBankMenuItemCount(void)
 
 static bool _ui_getPresetBankIdForMenuSelection(uint16_t selection, uint16_t *bank_id)
 {
-    uint16_t visible_bank_ids[4] = {0};
+    uint16_t visible_bank_ids[PRESET_BANK_MAX_VISIBLE] = {0};
     const uint8_t count = _ui_getVisiblePresetBankIds(visible_bank_ids,
                                                       ARRAY_SIZE(visible_bank_ids));
 
-    if((selection < 2U) || (selection >= (uint16_t) (2U + count)))
+    if((selection < 3U) || (selection >= (uint16_t) (3U + count)))
         return false;
 
     if(bank_id != NULL)
-        *bank_id = visible_bank_ids[selection - 2U];
+        *bank_id = visible_bank_ids[selection - 3U];
 
     return true;
 }
@@ -822,7 +822,7 @@ static uint16_t _ui_getUserBankMenuSelection(uint16_t bank_index)
 
 static bool _ui_bankSelectionIsAddNew(uint16_t selection)
 {
-    return selection == (_ui_getBankMenuBuiltinCount() - 1U);
+    return selection == 2U;
 }
 
 static int16_t _ui_getUserBankIndexFromSelection(uint16_t selection)
@@ -1224,7 +1224,10 @@ static int _ui_fsm_loadChannel(int16_t channel_index, bool *sync_rtx)
 
         if(_ui_isVirtualBankActive() && presetChannelsIsPresetBank(state.bank))
         {
-            result = presetChannelsGetChannel(state.bank, (uint16_t) channel_index, &channel);
+            result = presetChannelsGetChannelForBandplan(state.bank,
+                                                         (bandplan_t) state.settings.bandplan,
+                                                         (uint16_t) channel_index,
+                                                         &channel);
         }
         else
         {
