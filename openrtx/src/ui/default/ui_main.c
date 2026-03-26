@@ -126,6 +126,18 @@ static const char *_ui_getM17EncryptionLabel()
 
     return NULL;
 }
+
+static const char *_ui_getM17SyncCategoryLabel(uint8_t category)
+{
+    switch(category)
+    {
+        case 2: return "Settings";
+        case 3: return "Contacts";
+        case 4: return "Channels";
+        case 5: return "Zones";
+        default: return "Link";
+    }
+}
 #endif
 
 void _ui_drawModeInfo(ui_state_t* ui_state)
@@ -190,6 +202,46 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
 
             // Print M17 Destination ID on line 3 of 3
             rtxStatus_t rtxStatus = rtx_getCurrentStatus();
+
+            if(rtxStatus.M17_sync_active || rtxStatus.M17_sync_error)
+            {
+                const char *role = (rtxStatus.M17_sync_role == 1U) ? "SYNC SEND" : "SYNC RECV";
+                const char *cat = _ui_getM17SyncCategoryLabel(rtxStatus.M17_sync_category);
+
+                gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_CENTER,
+                          color_white, "%s", role);
+                gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                          color_white, "%s", cat);
+
+                if(rtxStatus.M17_sync_error)
+                {
+                    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                              color_white, "Rollback active");
+                    gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                              color_white, "Sync failed");
+                }
+                else if(rtxStatus.M17_sync_count > 0U)
+                {
+                    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                              color_white, "%u / %u",
+                              (unsigned int) (rtxStatus.M17_sync_index + 1U),
+                              (unsigned int) rtxStatus.M17_sync_count);
+                    gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                              color_white, "%s", rtxStatus.M17_dst[0] ? rtxStatus.M17_dst : rtxStatus.destination_address);
+                }
+                else
+                {
+                    gfx_print(layout.line3_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                              color_white, "Negotiating");
+                    gfx_print(layout.line4_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                              color_white, "%s", rtxStatus.M17_dst[0] ? rtxStatus.M17_dst : rtxStatus.destination_address);
+                }
+
+                if(encLabel != NULL)
+                    gfx_print(layout.line1_pos, layout.line1_font, TEXT_ALIGN_RIGHT,
+                              yellow_fab413, "%s", encLabel);
+                break;
+            }
 
             if(rtxStatus.lsfOk)
             {

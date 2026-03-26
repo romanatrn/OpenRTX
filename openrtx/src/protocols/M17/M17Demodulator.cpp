@@ -354,10 +354,12 @@ void M17Demodulator::syncedState()
         }
     }
 
-    uint8_t hd = hammingDistance((*demodFrame)[0], STREAM_SYNC_WORD[0])
-               + hammingDistance((*demodFrame)[1], STREAM_SYNC_WORD[1]);
+    uint8_t hdStream = hammingDistance((*demodFrame)[0], STREAM_SYNC_WORD[0])
+                     + hammingDistance((*demodFrame)[1], STREAM_SYNC_WORD[1]);
+    uint8_t hdPacket = hammingDistance((*demodFrame)[0], PACKET_SYNC_WORD[0])
+                     + hammingDistance((*demodFrame)[1], PACKET_SYNC_WORD[1]);
 
-    if(hd == 0)
+    if((hdStream == 0) || (hdPacket == 0))
         demodState = DemodState::LOCKED;
     else
         demodState = DemodState::UNLOCKED;
@@ -386,11 +388,13 @@ void M17Demodulator::syncUpdateState()
 {
     uint8_t streamHd = hammingDistance((*demodFrame)[0], STREAM_SYNC_WORD[0])
                      + hammingDistance((*demodFrame)[1], STREAM_SYNC_WORD[1]);
+    uint8_t packetHd = hammingDistance((*demodFrame)[0], PACKET_SYNC_WORD[0])
+                     + hammingDistance((*demodFrame)[1], PACKET_SYNC_WORD[1]);
 
     uint8_t eotHd = hammingDistance((*demodFrame)[0], EOT_SYNC_WORD[0])
                   + hammingDistance((*demodFrame)[1], EOT_SYNC_WORD[1]);
 
-    if(streamHd <= 1)
+    if((streamHd <= 1) || (packetHd <= 1))
         missedSyncs = 0;
     else
         missedSyncs += 1;

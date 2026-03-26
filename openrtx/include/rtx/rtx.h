@@ -56,6 +56,12 @@ typedef struct
     char     M17_link[10];             /**  M17 LSF traffic originator */
     char     M17_refl[10];             /**  M17 LSF reflector module   */
     char     M17_meta_text[53];        /**< M17 Meta Text              */
+    uint8_t  M17_sync_role;            /**< M17 sync role/state        */
+    uint8_t  M17_sync_category;        /**< M17 sync category          */
+    uint16_t M17_sync_index;           /**< M17 sync current object    */
+    uint16_t M17_sync_count;           /**< M17 sync total objects     */
+    bool     M17_sync_active;          /**< M17 sync in progress       */
+    bool     M17_sync_error;           /**< M17 sync failed            */
 }
 rtxStatus_t;
 

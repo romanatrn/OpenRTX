@@ -231,7 +231,13 @@ enum settingsM17Items
     M17_KEY_1,
     M17_KEY_2,
     M17_KEY_3,
-    M17_KEY_4
+    M17_KEY_4,
+    M17_SYNC_ROLE_ITEM,
+    M17_SYNC_CONTACTS_ITEM,
+    M17_SYNC_CHANNELS_ITEM,
+    M17_SYNC_ZONES_ITEM,
+    M17_SYNC_SETTINGS_ITEM,
+    M17_SYNC_KEYS_ITEM
 };
 
 enum settingsFMItems

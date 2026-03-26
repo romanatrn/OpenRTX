@@ -56,6 +56,10 @@ M17FrameType M17FrameDecoder::decodeFrame(const frame_t &frame)
             decodeStream(data);
             break;
 
+        case M17FrameType::PACKET:
+            decodePacket(data);
+            break;
+
         default:
             break;
     }
@@ -86,6 +90,14 @@ M17FrameDecoder::getFrameType(const std::array<uint8_t, 2> &syncWord)
 
     if (hammDistance < minDistance) {
         type = M17FrameType::STREAM;
+        minDistance = hammDistance;
+    }
+
+    hammDistance = hammingDistance(syncWord[0], PACKET_SYNC_WORD[0])
+                 + hammingDistance(syncWord[1], PACKET_SYNC_WORD[1]);
+
+    if (hammDistance < minDistance) {
+        type = M17FrameType::PACKET;
         minDistance = hammDistance;
     }
 
@@ -149,6 +161,21 @@ void M17FrameDecoder::decodeStream(const std::array<uint8_t, 46> &data)
     lastBitErrors = bitErrs;
     if (bitErrs < MAX_VITERBI_ERRORS)
         memcpy(&streamFrame.data, tmp.data(), tmp.size());
+}
+
+void M17FrameDecoder::decodePacket(const std::array<uint8_t, 46> &data)
+{
+    std::array<uint8_t, 34> punctured;
+    std::array<uint8_t, sizeof(M17StreamFrame)> tmp;
+
+    std::copy_n(data.begin(), punctured.size(), punctured.begin());
+
+    uint16_t bitErrs = viterbi.decodePunctured(punctured, tmp, DATA_PUNCTURE);
+    lastBitErrors = bitErrs;
+    lastLichDecoded = false;
+
+    if (bitErrs < MAX_VITERBI_ERRORS)
+        memcpy(&packetFrame.data, tmp.data(), tmp.size());
 }
 
 bool M17FrameDecoder::decodeLich(std::array<uint8_t, 6> &segment,

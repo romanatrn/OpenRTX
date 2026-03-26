@@ -105,6 +105,7 @@ target_sources(app
     openrtx/src/core/audio_stream.c
     openrtx/src/core/audio_path.cpp
     openrtx/src/core/data_conversion.c
+    openrtx/src/core/m17_sync.c
     openrtx/src/core/memory_profiling.cpp
     openrtx/src/core/voicePrompts.c
     openrtx/src/core/voicePromptUtils.c

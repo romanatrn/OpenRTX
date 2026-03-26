@@ -16,6 +16,7 @@
 
 #include "core/datetime.h"
 #include "core/bandplan.h"
+#include "core/m17_sync.h"
 #include "core/state.h"
 #include "interfaces/cps_io.h"
 #include "rtx/rtx.h"
@@ -504,8 +505,8 @@ static void devConsoleReplySetting(const char *key)
     {
         if(devConsoleJsonMode)
         {
-            devConsoleQueueUsbResponse("{\"type\":\"settings\",\"brightness\":%u,\"contrast\":%u,\"sql\":%u,\"vox\":%u,\"timezone\":%d,\"gps\":%u,\"gpssettime\":%u,\"callsign\":\"%s\",\"displaytimer\":%u,\"vplevel\":%u,\"vpphonetic\":%u,\"macrolatch\":%u,\"powerprofile\":%u,\"theme\":%u,\"bandplan\":%u,\"showbatteryicon\":%u,\"m17can\":%u,\"m17canrx\":%u,\"m17dest\":\"%s\",\"m17enc\":%u,\"m17encsub\":%u,\"m17keyindex\":%u,\"m17key1\":\"%s\",\"m17key2\":\"%s\",\"m17key3\":\"%s\",\"m17key4\":\"%s\",\"usbLog\":%u,\"metatext\":\"%s\",\"ppm\":%d}",
-                                        state.settings.brightness,
+            devConsoleQueueUsbResponse("{\"type\":\"settings\",\"brightness\":%u,\"contrast\":%u,\"sql\":%u,\"vox\":%u,\"timezone\":%d,\"gps\":%u,\"gpssettime\":%u,\"callsign\":\"%s\",\"displaytimer\":%u,\"vplevel\":%u,\"vpphonetic\":%u,\"macrolatch\":%u,\"powerprofile\":%u,\"theme\":%u,\"bandplan\":%u,\"showbatteryicon\":%u,\"m17can\":%u,\"m17canrx\":%u,\"m17dest\":\"%s\",\"m17enc\":%u,\"m17encsub\":%u,\"m17keyindex\":%u,\"m17key1\":\"%s\",\"m17key2\":\"%s\",\"m17key3\":\"%s\",\"m17key4\":\"%s\",\"usbLog\":%u,\"metatext\":\"%s\",\"ppm\":%d,\"syncrole\":%u,\"syncflags\":%u,\"synckeys\":%u}",
+                                         state.settings.brightness,
                                        state.settings.contrast,
                                        state.settings.sqlLevel,
                                        state.settings.voxLevel,
@@ -532,8 +533,11 @@ static void devConsoleReplySetting(const char *key)
                                        state.settings.m17_keys[2],
                                        state.settings.m17_keys[3],
                                        devConsole_getUsbExportEnabled() ? 1 : 0,
-                                       state.settings.M17_meta_text,
-                                       state.settings.ppm_offset);
+                                        state.settings.M17_meta_text,
+                                        state.settings.ppm_offset,
+                                        state.settings.m17_sync_role,
+                                        state.settings.m17_sync_flags,
+                                        state.settings.m17_sync_include_keys ? 1 : 0);
         }
         else
         {
@@ -566,6 +570,9 @@ static void devConsoleReplySetting(const char *key)
             devConsoleQueueUsbResponse("usbLog=%u", devConsole_getUsbExportEnabled() ? 1 : 0);
             devConsoleQueueUsbResponse("metatext=%s", state.settings.M17_meta_text);
             devConsoleQueueUsbResponse("ppm=%d", state.settings.ppm_offset);
+            devConsoleQueueUsbResponse("syncrole=%u", state.settings.m17_sync_role);
+            devConsoleQueueUsbResponse("syncflags=%u", state.settings.m17_sync_flags);
+            devConsoleQueueUsbResponse("synckeys=%u", state.settings.m17_sync_include_keys ? 1 : 0);
         }
         return;
     }
@@ -628,6 +635,12 @@ static void devConsoleReplySetting(const char *key)
         devConsoleQueueUsbResponse("metatext=%s", state.settings.M17_meta_text);
     else if(strcmp(key, "ppm") == 0)
         devConsoleQueueUsbResponse("ppm=%d", state.settings.ppm_offset);
+    else if(strcmp(key, "syncrole") == 0)
+        devConsoleQueueUsbResponse("syncrole=%u", state.settings.m17_sync_role);
+    else if(strcmp(key, "syncflags") == 0)
+        devConsoleQueueUsbResponse("syncflags=%u", state.settings.m17_sync_flags);
+    else if(strcmp(key, "synckeys") == 0)
+        devConsoleQueueUsbResponse("synckeys=%u", state.settings.m17_sync_include_keys ? 1 : 0);
     else
         devConsoleQueueUsbResponse("ERR unknown setting %s", key);
 }
@@ -712,6 +725,12 @@ static void devConsoleSetSetting(const char *key, const char *value)
         devConsoleCopyString(state.settings.m17_keys[3], sizeof(state.settings.m17_keys[3]), value);
     else if(strcmp(key, "ppm") == 0 && end != value && parsed >= -32768 && parsed <= 32767)
         state.settings.ppm_offset = parsed;
+    else if(strcmp(key, "syncrole") == 0 && end != value && parsed >= M17_SYNC_OFF && parsed <= M17_SYNC_RECEIVE)
+        state.settings.m17_sync_role = parsed;
+    else if(strcmp(key, "syncflags") == 0 && end != value && parsed >= 0 && parsed <= 255 && m17SyncSelectionValid((uint8_t) parsed))
+        state.settings.m17_sync_flags = parsed;
+    else if(strcmp(key, "synckeys") == 0 && end != value && (parsed == 0 || parsed == 1))
+        state.settings.m17_sync_include_keys = parsed == 1;
     else
     {
         devConsoleQueueUsbResponse("ERR bad setting/value");

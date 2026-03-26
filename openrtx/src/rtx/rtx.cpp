@@ -53,6 +53,12 @@ void rtx_init(pthread_mutex_t *m)
     rtxStatus.M17_link[0]   = '\0';
     rtxStatus.M17_refl[0]   = '\0';
     rtxStatus.M17_meta_text[0] = '\0';
+    rtxStatus.M17_sync_role = 0;
+    rtxStatus.M17_sync_category = 0;
+    rtxStatus.M17_sync_index = 0;
+    rtxStatus.M17_sync_count = 0;
+    rtxStatus.M17_sync_active = false;
+    rtxStatus.M17_sync_error = false;
     currMode = &noMode;
 
     /*

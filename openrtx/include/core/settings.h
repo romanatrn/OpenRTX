@@ -63,6 +63,9 @@ typedef struct
     uint8_t m17_default_enc_subtype;         // M17 default encryption subtype
     uint8_t m17_default_key_index;           // M17 default key slot (1-based, 0 disabled)
     char    m17_keys[M17_KEY_SLOTS][M17_KEY_HEX_LEN + 1]; // M17 key slots as hex strings
+    uint8_t m17_sync_role;        // Radio sync role: off, send, receive
+    uint8_t m17_sync_flags;       // Radio sync selection bitmap
+    bool    m17_sync_include_keys;// Include M17 key slots when syncing settings
     int16_t ppm_offset;           // Frequency offset for tuning (in tenth of ppm)
     uint16_t snake_high_score;    // Best Snake score
     uint16_t tetris_high_score;   // Best Tetris score
@@ -81,7 +84,7 @@ static const settings_t default_settings =
     255,
 #endif
     4,
-    0,
+    0x0F,
     0,
     false,
     "",
@@ -103,6 +106,9 @@ static const settings_t default_settings =
     0,
     0,
     { "", "", "", "" },
+    0,
+    0,
+    false,
     0,
     0,
     0,

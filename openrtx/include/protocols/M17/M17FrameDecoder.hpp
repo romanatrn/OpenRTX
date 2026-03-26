@@ -80,6 +80,11 @@ public:
         return streamFrame;
     }
 
+    const M17StreamFrame &getPacketFrame()
+    {
+        return packetFrame;
+    }
+
     uint16_t getLastBitErrors() const
     {
         return lastBitErrors;
@@ -118,6 +123,8 @@ private:
      */
     void decodeStream(const std::array<uint8_t, 46> &data);
 
+    void decodePacket(const std::array<uint8_t, 46> &data);
+
     /**
      * Decode a LICH block.
      *
@@ -132,6 +139,7 @@ private:
     M17LinkSetupFrame lsf;         ///< Latest LSF received.
     M17LinkSetupFrame lsfFromLich; ///< LSF assembled from LICH segments.
     M17StreamFrame streamFrame;    ///< Latest stream dat frame received.
+    M17StreamFrame packetFrame;    ///< Latest packet data frame received.
     M17HardViterbi viterbi;        ///< Viterbi decoder.
     uint16_t lastBitErrors = 0;    ///< Corrected bit errors for latest stream frame.
     bool lastLichDecoded = false;  ///< LICH decode status for latest stream frame.

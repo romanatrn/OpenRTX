@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include "protocols/M17/M17FrameDecoder.hpp"
 #include "protocols/M17/M17FrameEncoder.hpp"
@@ -17,6 +18,7 @@
 #include "protocols/M17/M17Crypto.hpp"
 #include "protocols/M17/MetaText.hpp"
 #include "core/audio_path.h"
+#include "core/settings.h"
 #include "OpMode.hpp"
 
 /**
@@ -133,9 +135,45 @@ private:
 
     void clearTxMeta(M17::meta_t& meta) const;
 
+    bool syncEnabled() const;
+    bool syncSender() const;
+    bool syncReceiver() const;
+    bool syncShouldStartOnPtt() const;
+    bool syncTxPending() const;
+    void resetSyncSession();
+    void prepareSyncSend();
+    void prepareSyncReceive(uint8_t sessionId);
+    bool buildSyncPacket(M17::payload_t& payload, bool& lastFrame, rtxStatus_t *status);
+    bool processSyncPacket(const M17::payload_t& payload, const M17::streamType_t& type,
+                           rtxStatus_t *status);
+    bool handleSyncAck(uint8_t category, uint16_t index);
+    bool handleSyncError(void);
+    bool beginSyncObject(uint8_t category, uint16_t index);
+    bool commitSyncObject(void);
+    void queueSyncAck(uint8_t category, uint16_t index, uint8_t type);
+    void queueSyncError(uint8_t category, uint16_t index);
+    void finalizeSyncReceive(void);
+
+    enum SyncPhase : uint8_t
+    {
+        SYNC_IDLE = 0,
+        SYNC_SEND_HELLO,
+        SYNC_SEND_MANIFEST_START,
+        SYNC_SEND_MANIFEST_CHUNK,
+        SYNC_SEND_MANIFEST_END,
+        SYNC_SEND_OBJECT_START,
+        SYNC_SEND_OBJECT_CHUNK,
+        SYNC_SEND_OBJECT_END,
+        SYNC_SEND_DONE,
+        SYNC_WAIT_ACK,
+        SYNC_COMPLETE,
+        SYNC_ERROR
+    };
+
     // GPS update interval in superframes. Each superframe is 6 LICH frames
     // (~240 ms), so 25 superframes ≈ 6 seconds.
     static constexpr uint16_t GPS_UPDATE_TICKS = 25;
+    static constexpr size_t SYNC_OBJECT_MAX = 192;
 
     bool startRx;                      ///< Flag for RX management.
     bool startTx;                      ///< Flag for TX management.
@@ -153,6 +191,31 @@ private:
     uint16_t gpsTimer;                 ///< GPS data transmission interval timer
     uint16_t txFrameNumber;            ///< Current TX payload frame number
     M17::MetaText metaText;            ///< M17 metatext accumulator
+    SyncPhase syncPhase;               ///< Radio sync sender state.
+    uint8_t syncSessionId;             ///< Active sync session id.
+    uint8_t syncTxSeq;                 ///< Sender sequence counter.
+    uint8_t syncRxSeq;                 ///< Receiver duplicate filter.
+    uint8_t syncCurrentCategory;       ///< Current category being transferred.
+    uint8_t syncSelection;             ///< Session selection bitmap.
+    uint8_t syncIncludeKeys;           ///< Session key-transfer flag.
+    uint16_t syncCurrentIndex;         ///< Current object index in category.
+    uint16_t syncCategoryCount;        ///< Object count in current category.
+    size_t syncObjectLen;              ///< Current object serialized length.
+    size_t syncObjectOffset;           ///< Current object transfer offset.
+    std::array<uint8_t, SYNC_OBJECT_MAX> syncObjectBuf; ///< Current object bytes.
+    bool syncAckQueued;                ///< Receiver has ACK/ERR queued for TX.
+    bool syncAckError;                 ///< Queued response is an error.
+    uint8_t syncAckCategory;           ///< Queued ACK category.
+    uint16_t syncAckIndex;             ///< Queued ACK object index.
+    uint8_t syncAckType;               ///< Queued ACK source packet type.
+    uint8_t syncLastTxType;            ///< Sender last transmitted packet type.
+    uint8_t syncLastTxCategory;        ///< Sender last transmitted category.
+    uint16_t syncLastTxIndex;          ///< Sender last transmitted index.
+    settings_t syncSavedSettings;      ///< Receiver rollback snapshot.
+    settings_t syncStagedSettings;     ///< Receiver staged settings blob.
+    bool syncHasStagedSettings;        ///< Receiver has staged settings.
+    bool syncCodeplugReset;            ///< Receiver cleared codeplug for session.
+    bool syncReceiveActive;            ///< Receiver accepted current session.
 };
 
 #endif /* OPMODE_M17_H */

@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include "core/battery_stats.h"
 #include "core/event.h"
+#include "core/m17_sync.h"
 #include "core/power.h"
 #include "core/dev_console.h"
 #include "core/state.h"
@@ -217,6 +218,12 @@ void state_init()
 
     if(!bandplanIsValid(state.settings.bandplan))
         state.settings.bandplan = BANDPLAN_CANADA;
+
+    if(state.settings.m17_sync_role > M17_SYNC_RECEIVE)
+        state.settings.m17_sync_role = M17_SYNC_OFF;
+
+    if(!m17SyncSelectionValid(state.settings.m17_sync_flags))
+        state.settings.m17_sync_flags = m17SyncGetDefaultSelection();
 
     /*
      * Try loading VFO configuration from nonvolatile memory and default to sane

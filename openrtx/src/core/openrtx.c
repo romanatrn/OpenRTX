@@ -11,6 +11,7 @@
 #include "interfaces/cps_io.h"
 #include "core/voicePrompts.h"
 #include "core/graphics.h"
+#include "core/m17_sync.h"
 #include "core/openrtx.h"
 #include "core/dev_console.h"
 #include "core/threads.h"
@@ -51,6 +52,9 @@ void openrtx_init()
             #endif
         }
     }
+
+    if(m17SyncJournalRecover(&state.settings) == 0)
+        state_saveSettings();
 
     // Display splash screen, turn on backlight after a suitable time to
     // hide random pixels during render process

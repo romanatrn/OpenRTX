@@ -499,6 +499,8 @@ int _ui_getRadioValueName(char *buf, uint8_t max_len, uint8_t index)
 }
 
 #ifdef CONFIG_M17
+#include "core/m17_sync.h"
+
 int _ui_getM17EntryName(char *buf, uint8_t max_len, uint8_t index)
 {
     if(index >= settings_m17_num) return -1;
@@ -572,6 +574,51 @@ int _ui_getM17ValueName(char *buf, uint8_t max_len, uint8_t index)
                 sniprintf(buf, max_len, "%s", last_state.settings.m17_keys[slot]);
             break;
         }
+
+        case M17_SYNC_ROLE_ITEM:
+            switch(last_state.settings.m17_sync_role)
+            {
+                case M17_SYNC_SEND:
+                    sniprintf(buf, max_len, "Send");
+                    break;
+                case M17_SYNC_RECEIVE:
+                    sniprintf(buf, max_len, "Recv");
+                    break;
+                default:
+                    sniprintf(buf, max_len, "%s", currentLanguage->off);
+                    break;
+            }
+            break;
+
+        case M17_SYNC_CONTACTS_ITEM:
+            sniprintf(buf, max_len, "%s",
+                      (last_state.settings.m17_sync_flags & M17_SYNC_CONTACTS) ?
+                      currentLanguage->on : currentLanguage->off);
+            break;
+
+        case M17_SYNC_CHANNELS_ITEM:
+            sniprintf(buf, max_len, "%s",
+                      (last_state.settings.m17_sync_flags & M17_SYNC_CHANNELS) ?
+                      currentLanguage->on : currentLanguage->off);
+            break;
+
+        case M17_SYNC_ZONES_ITEM:
+            sniprintf(buf, max_len, "%s",
+                      (last_state.settings.m17_sync_flags & M17_SYNC_ZONES) ?
+                      currentLanguage->on : currentLanguage->off);
+            break;
+
+        case M17_SYNC_SETTINGS_ITEM:
+            sniprintf(buf, max_len, "%s",
+                      (last_state.settings.m17_sync_flags & M17_SYNC_SETTINGS) ?
+                      currentLanguage->on : currentLanguage->off);
+            break;
+
+        case M17_SYNC_KEYS_ITEM:
+            sniprintf(buf, max_len, "%s",
+                      last_state.settings.m17_sync_include_keys ?
+                      currentLanguage->on : currentLanguage->off);
+            break;
     }
 
     return 0;

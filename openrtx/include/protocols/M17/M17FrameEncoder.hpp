@@ -71,6 +71,9 @@ public:
     uint16_t encodeStreamFrame(const payload_t& payload, frame_t& output,
                                const bool isLast = false);
 
+    uint16_t encodePacketFrame(const payload_t& payload, frame_t& output,
+                               const bool isLast = false);
+
     /**
      * Encode an End Of Transmission marker frame.
      *

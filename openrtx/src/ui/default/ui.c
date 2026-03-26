@@ -63,6 +63,7 @@
 #include "core/bandplan.h"
 #include "core/input.h"
 #include "core/preset_channels.h"
+#include "core/m17_sync.h"
 #include "core/repeater.h"
 #include "core/satellite.h"
 #include "core/power.h"
@@ -216,7 +217,13 @@ const char * settings_m17_items[] =
     "Key 1",
     "Key 2",
     "Key 3",
-    "Key 4"
+    "Key 4",
+    "Sync Role",
+    "Sync Contacts",
+    "Sync Channels",
+    "Sync Zones",
+    "Sync Settings",
+    "Sync Keys"
 };
 
 const char* settings_fm_items[] =
@@ -1938,6 +1945,27 @@ static void _ui_changeM17KeySlot(int variation)
     if(slot > M17_KEY_SLOTS)
         slot = M17_KEY_SLOTS;
     state.settings.m17_default_key_index = slot;
+}
+
+static void _ui_cycleM17SyncRole(int variation)
+{
+    const int roles = M17_SYNC_RECEIVE + 1;
+    int role = state.settings.m17_sync_role + variation;
+
+    while(role < 0)
+        role += roles;
+
+    state.settings.m17_sync_role = role % roles;
+}
+
+static void _ui_toggleM17SyncFlag(uint8_t flag)
+{
+    state.settings.m17_sync_flags ^= flag;
+}
+
+static void _ui_toggleM17SyncKeys(void)
+{
+    state.settings.m17_sync_include_keys = !state.settings.m17_sync_include_keys;
 }
 #endif
 
@@ -4867,6 +4895,46 @@ void ui_updateFSM(bool *sync_rtx)
                             }
                             break;
                         }
+                        case M17_SYNC_ROLE_ITEM:
+                            if(msg.keys & KEY_DOWN || msg.keys & KNOB_LEFT)
+                                _ui_cycleM17SyncRole(-1);
+                            else if(msg.keys & KEY_UP || msg.keys & KNOB_RIGHT)
+                                _ui_cycleM17SyncRole(+1);
+                            else if(msg.keys & KEY_ENTER)
+                                ui_state.edit_mode = !ui_state.edit_mode;
+                            else if(msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
+                        case M17_SYNC_CONTACTS_ITEM:
+                        case M17_SYNC_CHANNELS_ITEM:
+                        case M17_SYNC_ZONES_ITEM:
+                        case M17_SYNC_SETTINGS_ITEM:
+                        case M17_SYNC_KEYS_ITEM:
+                        {
+                            bool toggle = (msg.keys & KEY_LEFT) || (msg.keys & KEY_RIGHT) ||
+                                          (ui_state.edit_mode &&
+                                          ((msg.keys & KEY_DOWN) || (msg.keys & KNOB_LEFT) ||
+                                           (msg.keys & KEY_UP) || (msg.keys & KNOB_RIGHT)));
+
+                            if(toggle)
+                            {
+                                if(ui_state.menu_selected == M17_SYNC_KEYS_ITEM)
+                                    _ui_toggleM17SyncKeys();
+                                else if(ui_state.menu_selected == M17_SYNC_CONTACTS_ITEM)
+                                    _ui_toggleM17SyncFlag(M17_SYNC_CONTACTS);
+                                else if(ui_state.menu_selected == M17_SYNC_CHANNELS_ITEM)
+                                    _ui_toggleM17SyncFlag(M17_SYNC_CHANNELS);
+                                else if(ui_state.menu_selected == M17_SYNC_ZONES_ITEM)
+                                    _ui_toggleM17SyncFlag(M17_SYNC_ZONES);
+                                else if(ui_state.menu_selected == M17_SYNC_SETTINGS_ITEM)
+                                    _ui_toggleM17SyncFlag(M17_SYNC_SETTINGS);
+                            }
+                            else if(msg.keys & KEY_ENTER)
+                                ui_state.edit_mode = !ui_state.edit_mode;
+                            else if(msg.keys & KEY_ESC)
+                                ui_state.edit_mode = false;
+                            break;
+                        }
                     }
                 }
                 else
@@ -4940,6 +5008,29 @@ void ui_updateFSM(bool *sync_rtx)
                             _ui_changeM17KeySlot(-1);
                             devConsole_log(DEVLOG_INFO, "M17", "Key slot %u",
                                            state.settings.m17_default_key_index);
+                    }
+                    else if((msg.keys & KEY_RIGHT) && (ui_state.menu_selected == M17_SYNC_ROLE_ITEM))
+                    {
+                        _ui_cycleM17SyncRole(+1);
+                    }
+                    else if((msg.keys & KEY_LEFT)  && (ui_state.menu_selected == M17_SYNC_ROLE_ITEM))
+                    {
+                        _ui_cycleM17SyncRole(-1);
+                    }
+                    else if(((msg.keys & KEY_RIGHT) || (msg.keys & KEY_LEFT)) &&
+                            (ui_state.menu_selected >= M17_SYNC_CONTACTS_ITEM) &&
+                            (ui_state.menu_selected <= M17_SYNC_KEYS_ITEM))
+                    {
+                        if(ui_state.menu_selected == M17_SYNC_KEYS_ITEM)
+                            _ui_toggleM17SyncKeys();
+                        else if(ui_state.menu_selected == M17_SYNC_CONTACTS_ITEM)
+                            _ui_toggleM17SyncFlag(M17_SYNC_CONTACTS);
+                        else if(ui_state.menu_selected == M17_SYNC_CHANNELS_ITEM)
+                            _ui_toggleM17SyncFlag(M17_SYNC_CHANNELS);
+                        else if(ui_state.menu_selected == M17_SYNC_ZONES_ITEM)
+                            _ui_toggleM17SyncFlag(M17_SYNC_ZONES);
+                        else if(ui_state.menu_selected == M17_SYNC_SETTINGS_ITEM)
+                            _ui_toggleM17SyncFlag(M17_SYNC_SETTINGS);
                     }
                     else if(msg.keys & KEY_ESC)
                     {

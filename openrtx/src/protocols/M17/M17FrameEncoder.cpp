@@ -99,6 +99,33 @@ uint16_t M17FrameEncoder::encodeStreamFrame(const payload_t& payload,
     return streamFrame.getFrameNumber();
 }
 
+uint16_t M17FrameEncoder::encodePacketFrame(const payload_t& payload,
+                                            frame_t& output, const bool isLast)
+{
+    M17StreamFrame packetFrame;
+
+    packetFrame.setFrameNumber(streamFrameNumber);
+    streamFrameNumber = (streamFrameNumber + 1) & 0x7FFF;
+    if(isLast) packetFrame.lastFrame();
+    std::copy(payload.begin(), payload.end(), packetFrame.payload().begin());
+
+    std::array<uint8_t, 37> encoded;
+    encoder.reset();
+    encoder.encode(packetFrame.getData(), encoded.data(), sizeof(M17StreamFrame));
+    encoded[36] = encoder.flush();
+
+    std::array<uint8_t, 34> punctured;
+    puncture(encoded, punctured, DATA_PUNCTURE);
+    interleave(punctured);
+    decorrelate(punctured);
+
+    auto oIt = std::copy(PACKET_SYNC_WORD.begin(), PACKET_SYNC_WORD.end(),
+                         output.begin());
+    std::copy(punctured.begin(), punctured.end(), oIt);
+
+    return packetFrame.getFrameNumber();
+}
+
 void M17::M17FrameEncoder::encodeEotFrame(M17::frame_t& output)
 {
     for(size_t i = 0; i < output.size(); i += 2)
